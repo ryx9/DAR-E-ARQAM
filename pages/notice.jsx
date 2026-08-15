@@ -4,27 +4,27 @@ import { useRouter } from 'next/router';
 import { supabase } from '../utils/supabaseClient';
 import Navbar from '../components/Navbar';
 import Groq from 'groq-sdk';
-import Loader from '../components/Loader'; 
+import Loader from '../components/Loader';
 import { Button } from '../components/ui/button';
 import { Select, SelectTrigger, SelectContent, SelectItem, SelectValue } from '../components/ui/select';
-import { 
-  Search, 
-  Users, 
-  FileText, 
-  Send, 
-  CheckSquare, 
-  Square, 
-  ShieldCheck, 
-  Loader2, 
-  RefreshCcw, 
-  Sparkles, 
-  Bot 
+import {
+  Search,
+  Users,
+  FileText,
+  Send,
+  CheckSquare,
+  Square,
+  ShieldCheck,
+  Loader2,
+  RefreshCcw,
+  Sparkles,
+  Bot
 } from 'lucide-react';
 
 // --- CONFIGURATION ---
-const groq = new Groq({ 
-  apiKey: process.env.NEXT_PUBLIC_GROQ_API_KEY, 
-  dangerouslyAllowBrowser: true 
+const groq = new Groq({
+  apiKey: process.env.NEXT_PUBLIC_GROQ_API_KEY,
+  dangerouslyAllowBrowser: true
 });
 
 // 1. CONTEXT: Smart Drafter
@@ -93,22 +93,22 @@ Do not provide conversational text, only the JSON.
 
 export default function BulkMessagePage() {
   const router = useRouter();
-  
+
   const { student: urlStudentId, class: urlClassId } = router.query;
 
   const [classes, setClasses] = useState([]);
   // MODIFIED: State now holds an array of selected class IDs
   const [selectedClasses, setSelectedClasses] = useState([]);
-    
-  const [filterClear, setFilterClear] = useState('all'); 
+
+  const [filterClear, setFilterClear] = useState('all');
   const [students, setStudents] = useState([]);
   const [selectedIds, setSelectedIds] = useState(new Set());
   const [selectAll, setSelectAll] = useState(false);
-  
+
   const [message, setMessage] = useState('');
   const [loading, setLoading] = useState(false);
-  const [saving, setSaving] = useState(false); 
-  const [isDrafting, setIsDrafting] = useState(false); 
+  const [saving, setSaving] = useState(false);
+  const [isDrafting, setIsDrafting] = useState(false);
   const [query, setQuery] = useState('');
 
   // Handle URL Params (Set Class) - Only if student ID is NOT present
@@ -158,13 +158,13 @@ export default function BulkMessagePage() {
               ...s,
               class: s.classes?.name || ''
             }));
-            
+
             setStudents(formatted);
             setSelectedIds(new Set([formatted[0].studentid]));
             setSelectedClasses([String(formatted[0].class_id)]);
           }
-        } 
-        
+        }
+
         // CASE B: Class Selection (Standard Bulk Mode - MULTIPLE CLASSES)
         else if (selectedClasses.length > 0) {
           const { data, error } = await supabase
@@ -198,7 +198,7 @@ export default function BulkMessagePage() {
   // Filtering Logic (Search bar / Status)
   const filtered = useMemo(() => {
     let result = students;
-    
+
     if (filterClear === 'true') {
       result = result.filter(s => s.Clear === true);
     } else if (filterClear === 'false') {
@@ -255,7 +255,7 @@ export default function BulkMessagePage() {
       alert("Please type a topic or rough draft first (e.g. 'Exam tomorrow' or 'Fee reminder').");
       return;
     }
-    
+
     setIsDrafting(true);
     try {
       const chatCompletion = await groq.chat.completions.create({
@@ -263,14 +263,14 @@ export default function BulkMessagePage() {
           { role: "system", content: AI_DRAFTER_PROMPT },
           { role: "user", content: `User Input: "${message}"` }
         ],
-        model: "llama-3.1-8b-instant",
-        temperature: 0.7,
+        model: "openai/gpt-oss-120b",
+        temperature: 0.2,
         max_completion_tokens: 600,
       });
 
       const draftedText = chatCompletion.choices[0]?.message?.content;
       if (draftedText) {
-        setMessage(draftedText); 
+        setMessage(draftedText);
       }
     } catch (error) {
       console.error("Drafting failed:", error);
@@ -288,11 +288,11 @@ export default function BulkMessagePage() {
           { role: "system", content: SCHOOL_POLICY_CONTEXT },
           { role: "user", content: `Message Content: "${textToCheck}"` }
         ],
-        model: "openai/gpt-oss-120b", 
+        model: "openai/gpt-oss-120b",
         temperature: 0,
         max_completion_tokens: 2048,
         response_format: { type: 'json_object' },
-        stream: false 
+        stream: false
       });
 
       const content = chatCompletion.choices[0]?.message?.content;
@@ -326,11 +326,11 @@ export default function BulkMessagePage() {
       return;
     }
 
-    setSaving(true); 
+    setSaving(true);
 
     // --- POLICY CHECK ---
     const policyResult = await checkContentPolicy(message);
-    
+
     if (!policyResult.allowed) {
       setSaving(false);
       alert(`⚠️ Policy Violation Detected:\n\n"${policyResult.reason}"\n\nThe message was NOT sent. Please revise.`);
@@ -358,7 +358,7 @@ export default function BulkMessagePage() {
           class_id: student?.class_id,
           text: customizedMessage.trim(),
           created_at: new Date().toISOString(),
-          type:"notice"
+          type: "notice"
         };
       });
 
@@ -372,7 +372,7 @@ export default function BulkMessagePage() {
       } else {
         alert(`✅ Verified & Saved personalized message for ${payload.length} student(s).`);
         setMessage('');
-        
+
         // Don't clear selection if in 'student' URL mode
         if (!urlStudentId) {
           setSelectedIds(new Set());
@@ -390,9 +390,9 @@ export default function BulkMessagePage() {
   return (
     <div className="min-h-screen bg-gradient-to-b from-gray-50 to-gray-200 dark:from-[#0b1220] dark:to-[#05070c] text-gray-900 dark:text-slate-100 transition-colors">
       <Navbar />
-      
+
       <main className="container mx-auto max-w-7xl p-4 md:p-6 space-y-6">
-        
+
         {/* Header & Controls */}
         <div className="flex flex-col lg:flex-row gap-6 justify-between items-start lg:items-end">
           <div>
@@ -406,22 +406,22 @@ export default function BulkMessagePage() {
         {/* Filter Bar */}
         <div className="bg-white dark:bg-white/5 backdrop-blur-xl border border-gray-200 dark:border-white/10 rounded-xl p-4 shadow-sm">
           <div className="grid grid-cols-1 md:grid-cols-12 gap-4">
-            
+
             {/* MODIFIED: Multi-Select Classes UI (Pill Layout) */}
             {(!urlClassId && !urlStudentId) && (
               <div className="md:col-span-4 flex flex-col">
                 <div className="flex items-center justify-between mb-1.5">
                   <label className="text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400">Select Class(es)</label>
                   {selectedClasses.length > 0 && (
-                     <button 
-                       onClick={() => setSelectedClasses([])}
-                       className="text-[10px] text-blue-500 hover:text-blue-600 dark:text-blue-400 transition-colors"
-                     >
-                       Clear All
-                     </button>
+                    <button
+                      onClick={() => setSelectedClasses([])}
+                      className="text-[10px] text-blue-500 hover:text-blue-600 dark:text-blue-400 transition-colors"
+                    >
+                      Clear All
+                    </button>
                   )}
                 </div>
-                
+
                 <div className="flex flex-wrap gap-1.5 max-h-[85px] overflow-y-auto p-2 border border-gray-200 dark:border-white/10 rounded-md bg-gray-50 dark:bg-white/5 scrollbar-thin">
                   {classes.map(c => {
                     const isSelected = selectedClasses.includes(String(c.id));
@@ -429,17 +429,16 @@ export default function BulkMessagePage() {
                       <button
                         key={c.id}
                         onClick={() => {
-                          setSelectedClasses(prev => 
-                            prev.includes(String(c.id)) 
-                              ? prev.filter(id => id !== String(c.id)) 
+                          setSelectedClasses(prev =>
+                            prev.includes(String(c.id))
+                              ? prev.filter(id => id !== String(c.id))
                               : [...prev, String(c.id)]
                           );
                         }}
-                        className={`px-3 py-1 text-xs font-medium rounded-full border transition-all ${
-                          isSelected 
-                            ? 'bg-blue-600 text-white border-blue-600 shadow-sm' 
-                            : 'bg-white dark:bg-slate-800 text-gray-600 dark:text-gray-300 border-gray-200 dark:border-gray-700 hover:border-blue-400'
-                        }`}
+                        className={`px-3 py-1 text-xs font-medium rounded-full border transition-all ${isSelected
+                          ? 'bg-blue-600 text-white border-blue-600 shadow-sm'
+                          : 'bg-white dark:bg-slate-800 text-gray-600 dark:text-gray-300 border-gray-200 dark:border-gray-700 hover:border-blue-400'
+                          }`}
                       >
                         {c.name}
                       </button>
@@ -483,23 +482,23 @@ export default function BulkMessagePage() {
 
             {/* If we have params and UI is cleaned, show a context badge */}
             {(urlClassId || urlStudentId) && (
-               <div className="md:col-span-12 flex items-center gap-2 text-sm text-blue-500 bg-blue-50 dark:bg-blue-900/20 p-2 rounded-lg border border-blue-200 dark:border-blue-800">
-                 <span className="font-semibold">Mode:</span> 
-                 {urlStudentId 
-                    ? <span>Direct Student Messaging (ID: {urlStudentId})</span>
-                    : <span>Targeted Class Context</span>
-                 }
-               </div>
+              <div className="md:col-span-12 flex items-center gap-2 text-sm text-blue-500 bg-blue-50 dark:bg-blue-900/20 p-2 rounded-lg border border-blue-200 dark:border-blue-800">
+                <span className="font-semibold">Mode:</span>
+                {urlStudentId
+                  ? <span>Direct Student Messaging (ID: {urlStudentId})</span>
+                  : <span>Targeted Class Context</span>
+                }
+              </div>
             )}
           </div>
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-12 gap-6">
-          
+
           {/* Left Col: Student List */}
           <div className="md:col-span-7 flex flex-col">
             <div className="bg-white dark:bg-white/5 backdrop-blur-xl border border-gray-200 dark:border-white/10 rounded-xl shadow-sm flex-1 flex flex-col overflow-hidden h-[500px] md:h-[600px]">
-              
+
               {/* List Header */}
               <div className="p-4 border-b border-gray-100 dark:border-white/5 flex flex-wrap gap-2 items-center justify-between bg-gray-50/50 dark:bg-white/[0.02]">
                 <div className="flex items-center gap-2">
@@ -511,20 +510,20 @@ export default function BulkMessagePage() {
                 {/* Hide selection tools if targeting single student via URL */}
                 {!urlStudentId && (
                   <div className="flex gap-2">
-                    <Button 
-                      variant="outline" 
-                      size="sm" 
-                      onClick={toggleSelectAll} 
-                      disabled={!students.length} 
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={toggleSelectAll}
+                      disabled={!students.length}
                       className="h-8 text-xs border-gray-200 dark:border-white/10"
                     >
                       {selectAll ? <CheckSquare className="w-3 h-3 mr-1" /> : <Square className="w-3 h-3 mr-1" />}
                       {selectAll ? 'Unselect All' : 'Select All'}
                     </Button>
-                    <Button 
-                      variant="outline" 
-                      size="sm" 
-                      onClick={invertSelection} 
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={invertSelection}
                       disabled={!students.length}
                       className="h-8 text-xs border-gray-200 dark:border-white/10"
                     >
@@ -537,15 +536,15 @@ export default function BulkMessagePage() {
               {/* Scrollable List */}
               <div className="flex-1 overflow-y-auto scrollbar-thin scrollbar-thumb-gray-200 dark:scrollbar-thumb-white/10">
                 {loading && (
-                   <div className="flex flex-col items-center justify-center h-40">
-                      <Loader />
-                   </div>
+                  <div className="flex flex-col items-center justify-center h-40">
+                    <Loader />
+                  </div>
                 )}
-                
+
                 {!loading && filtered.length === 0 && (
                   <div className="p-8 text-center text-sm text-gray-500 dark:text-gray-400">
-                    {selectedClasses.length === 0 
-                      ? "Select one or more classes to load students." 
+                    {selectedClasses.length === 0
+                      ? "Select one or more classes to load students."
                       : "No students found matching criteria."}
                   </div>
                 )}
@@ -554,25 +553,25 @@ export default function BulkMessagePage() {
                   {filtered.map(s => {
                     const checked = selectedIds.has(s.studentid);
                     return (
-                      <li 
-                        key={s.studentid} 
+                      <li
+                        key={s.studentid}
                         onClick={() => toggleSelect(s.studentid)}
                         className={`group flex items-center gap-3 p-2.5 cursor-pointer transition-colors hover:bg-gray-50 dark:hover:bg-white/5 ${checked ? 'bg-blue-50/50 dark:bg-blue-900/10' : ''}`}
                       >
                         <div className={`w-4 h-4 rounded border flex items-center justify-center transition-colors ${checked ? 'bg-blue-600 border-blue-600 text-white' : 'border-gray-300 dark:border-gray-600 text-transparent'}`}>
                           <CheckSquare className="w-3 h-3" />
                         </div>
-                        
+
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center justify-between gap-2">
                             <span className={`text-sm font-medium truncate ${checked ? 'text-blue-700 dark:text-blue-300' : 'text-gray-900 dark:text-white'}`}>
                               {s.name}
                             </span>
-                            {s.Clear ? 
+                            {s.Clear ?
                               <span className="text-[10px] whitespace-nowrap inline-flex items-center gap-1 bg-green-100 dark:bg-green-500/20 text-green-700 dark:text-green-300 px-2 py-0.5 rounded-full font-medium">
                                 <ShieldCheck className="w-3 h-3" /> Clear
-                              </span> 
-                              : 
+                              </span>
+                              :
                               <span className="text-[10px] whitespace-nowrap inline-flex items-center gap-1 bg-amber-100 dark:bg-amber-500/20 text-amber-700 dark:text-amber-300 px-2 py-0.5 rounded-full font-medium">
                                 Pending
                               </span>
@@ -595,68 +594,68 @@ export default function BulkMessagePage() {
 
           {/* Right Col: Message Composer */}
           <div className="md:col-span-5 flex flex-col">
-             <div className="bg-white dark:bg-white/5 backdrop-blur-xl border border-gray-200 dark:border-white/10 rounded-xl shadow-sm p-5 h-auto min-h-[500px] md:h-[600px] flex flex-col relative overflow-hidden">
-               
-               {/* --- PROMINENT AI BRANDING AREA --- */}
-               <div className="mb-4">
-                 <div className="flex items-center justify-between mb-2">
-                   <h2 className="text-sm font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400 flex items-center gap-2">
-                      <Bot className="w-4 h-4 text-purple-500" /> AI Assistant
-                   </h2>
-                 </div>
-                 <button 
-                   onClick={handleSmartDraft}
-                   disabled={isDrafting || !message}
-                   className="w-full flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-500 hover:from-purple-700 hover:to-blue-700 text-white p-3 rounded-lg shadow-md transition-all font-medium disabled:opacity-70 disabled:cursor-not-allowed group"
-                 >
-                   {isDrafting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4 group-hover:scale-110 transition-transform" />}
-                   {isDrafting ? 'Drafting Professional Message...' : 'Generate Professional Message with AI'}
-                 </button>
-                 <p className="text-[10px] text-gray-400 text-center mt-2">
-                   Type a topic (e.g. "fee reminder") or rough draft below, then click Generate.
-                 </p>
-               </div>
-               {/* ---------------------------------- */}
+            <div className="bg-white dark:bg-white/5 backdrop-blur-xl border border-gray-200 dark:border-white/10 rounded-xl shadow-sm p-5 h-auto min-h-[500px] md:h-[600px] flex flex-col relative overflow-hidden">
 
-               <div className="flex-1 flex flex-col min-h-0">
-                 <label className="text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400 flex items-center gap-2 mb-2">
-                   <FileText className="w-4 h-4" /> Message Editor
-                 </label>
-                 
-                 <textarea
-                   value={message}
-                   onChange={(e) => setMessage(e.target.value)}
-                   placeholder="1. Type your idea here... (e.g., 'Tell parents school is closed tomorrow')&#10;2. Click the AI button above to draft it."
-                   className="flex-1 w-full p-4 rounded-xl border border-gray-300 dark:border-gray-700 bg-white dark:bg-slate-900 text-sm text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500/50 resize-none font-mono min-h-[200px]"
-                 />
-                 <div className="mt-2 text-[10px] text-gray-400 flex flex-wrap gap-2">
-                   <span className="bg-gray-100 dark:bg-white/10 px-1.5 py-0.5 rounded">{'{{name}}'}</span>
-                   <span className="bg-gray-100 dark:bg-white/10 px-1.5 py-0.5 rounded">{'{{fathername}}'}</span>
-                   <span className="bg-gray-100 dark:bg-white/10 px-1.5 py-0.5 rounded">{'{{id}}'}</span>
-                   <span className="bg-gray-100 dark:bg-white/10 px-1.5 py-0.5 rounded">{'{{class}}'}</span>
-                   <span className="bg-gray-100 dark:bg-white/10 px-1.5 py-0.5 rounded">{'{{date}}'}</span>
-                 </div>
-               </div>
+              {/* --- PROMINENT AI BRANDING AREA --- */}
+              <div className="mb-4">
+                <div className="flex items-center justify-between mb-2">
+                  <h2 className="text-sm font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400 flex items-center gap-2">
+                    <Bot className="w-4 h-4 text-purple-500" /> AI Assistant
+                  </h2>
+                </div>
+                <button
+                  onClick={handleSmartDraft}
+                  disabled={isDrafting || !message}
+                  className="w-full flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-500 hover:from-purple-700 hover:to-blue-700 text-white p-3 rounded-lg shadow-md transition-all font-medium disabled:opacity-70 disabled:cursor-not-allowed group"
+                >
+                  {isDrafting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4 group-hover:scale-110 transition-transform" />}
+                  {isDrafting ? 'Drafting Professional Message...' : 'Generate Professional Message with AI'}
+                </button>
+                <p className="text-[10px] text-gray-400 text-center mt-2">
+                  Type a topic (e.g. "fee reminder") or rough draft below, then click Generate.
+                </p>
+              </div>
+              {/* ---------------------------------- */}
 
-               <div className="mt-5 flex flex-wrap gap-3 pt-4 border-t border-gray-100 dark:border-white/5">
-                 <Button
-                   onClick={() => { setSelectedIds(new Set()); setSelectAll(false); setMessage(''); }}
-                   disabled={saving}
-                   variant="ghost"
-                   className="flex-1 min-w-[100px]"
-                 >
-                   Reset
-                 </Button>
-                 <Button
-                   onClick={handleSave}
-                   disabled={saving || selectedIds.size === 0 || !message.trim()}
-                   className="flex-[2] min-w-[180px] bg-blue-600 hover:bg-blue-700 text-white shadow-lg shadow-blue-500/20"
-                 >
-                   {saving ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Send className="w-4 h-4 mr-2" />}
-                   {saving ? 'Verifying & Sending...' : `Send to ${selectedIds.size} Students`}
-                 </Button>
-               </div>
-             </div>
+              <div className="flex-1 flex flex-col min-h-0">
+                <label className="text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400 flex items-center gap-2 mb-2">
+                  <FileText className="w-4 h-4" /> Message Editor
+                </label>
+
+                <textarea
+                  value={message}
+                  onChange={(e) => setMessage(e.target.value)}
+                  placeholder="1. Type your idea here... (e.g., 'Tell parents school is closed tomorrow')&#10;2. Click the AI button above to draft it."
+                  className="flex-1 w-full p-4 rounded-xl border border-gray-300 dark:border-gray-700 bg-white dark:bg-slate-900 text-sm text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500/50 resize-none font-mono min-h-[200px]"
+                />
+                <div className="mt-2 text-[10px] text-gray-400 flex flex-wrap gap-2">
+                  <span className="bg-gray-100 dark:bg-white/10 px-1.5 py-0.5 rounded">{'{{name}}'}</span>
+                  <span className="bg-gray-100 dark:bg-white/10 px-1.5 py-0.5 rounded">{'{{fathername}}'}</span>
+                  <span className="bg-gray-100 dark:bg-white/10 px-1.5 py-0.5 rounded">{'{{id}}'}</span>
+                  <span className="bg-gray-100 dark:bg-white/10 px-1.5 py-0.5 rounded">{'{{class}}'}</span>
+                  <span className="bg-gray-100 dark:bg-white/10 px-1.5 py-0.5 rounded">{'{{date}}'}</span>
+                </div>
+              </div>
+
+              <div className="mt-5 flex flex-wrap gap-3 pt-4 border-t border-gray-100 dark:border-white/5">
+                <Button
+                  onClick={() => { setSelectedIds(new Set()); setSelectAll(false); setMessage(''); }}
+                  disabled={saving}
+                  variant="ghost"
+                  className="flex-1 min-w-[100px]"
+                >
+                  Reset
+                </Button>
+                <Button
+                  onClick={handleSave}
+                  disabled={saving || selectedIds.size === 0 || !message.trim()}
+                  className="flex-[2] min-w-[180px] bg-blue-600 hover:bg-blue-700 text-white shadow-lg shadow-blue-500/20"
+                >
+                  {saving ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Send className="w-4 h-4 mr-2" />}
+                  {saving ? 'Verifying & Sending...' : `Send to ${selectedIds.size} Students`}
+                </Button>
+              </div>
+            </div>
           </div>
 
         </div>
