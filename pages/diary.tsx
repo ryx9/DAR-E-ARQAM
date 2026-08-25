@@ -89,6 +89,7 @@ RULES:
 1. Content must be educational. No personal contact details other than 03234447292 or school address.
 2. No abusive language. Nothing bad about school or staff's personal issues.
 3. RETURN JSON ONLY: { "allowed": boolean, "reason": "string" }.
+4. Make sure that there are no english spelling mistakes (ignore urdu). Also block empty diaries ie which contain no subject information
 `;
 
 interface Class {
