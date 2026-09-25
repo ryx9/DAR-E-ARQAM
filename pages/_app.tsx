@@ -18,7 +18,7 @@ const OPEN_ROUTES = [
 ]
 
 // Cache duration: 24 hours in milliseconds
-const CACHE_TTL = 24 * 60 * 60 * 1000 
+const CACHE_TTL = 1 * 60 * 1000
 
 const useAuth = () => {
   const [authState, setAuthState] = useState({

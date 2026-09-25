@@ -10,7 +10,7 @@ import { Loader2, Mail, Lock, Eye, EyeOff, Key, ArrowRight } from 'lucide-react'
 
 export default function AuthPage() {
   const router = useRouter()
-  
+
   // Login States
   const [loginEmail, setLoginEmail] = useState('')
   const [loginPassword, setLoginPassword] = useState('')
@@ -36,10 +36,11 @@ export default function AuthPage() {
     setError(null)
 
     // 1. Authenticate the user
-    const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
-      email: loginEmail,
-      password: loginPassword,
-    })
+    const { data: authData, error: authError } =
+      await supabase.auth.signInWithPassword({
+        email: loginEmail,
+        password: loginPassword,
+      })
 
     if (authError) {
       setError(authError.message)
@@ -47,34 +48,60 @@ export default function AuthPage() {
       return
     }
 
-    // 2. If login is successful, fetch the user's role from the profiles table
+    // 2. Check the user's profile and active status
     if (authData?.user) {
-      const { data: profileData, error: profileError } = await supabase
-        .from('profiles')
-        .select('role')
-        .eq('id', authData.user.id)
-        .single()
+      const { data: profileData, error: profileError } =
+        await supabase
+          .from('profiles')
+          .select('role, is_active')
+          .eq('id', authData.user.id)
+          .single()
 
-      if (profileError) {
-        console.error("Error fetching profile role:", profileError)
-        // If there's an error fetching the profile, you might want to handle it 
-        // or just let them fall back to the default route.
+      // Profile lookup failed
+      if (profileError || !profileData) {
+        console.error(
+          'Error fetching user profile:',
+          profileError
+        )
+
+        await supabase.auth.signOut()
+
+        setError(
+          'Unable to verify your account. Please try again.'
+        )
+
+        setLoading(false)
+        return
       }
 
-      // --- NEW LOGIC: Store the role in localStorage ---
-      // We use a fallback to 'user' just in case the profileData doesn't have a role set
-      const userRole = profileData?.role || 'user'
-      localStorage.setItem('UserRole', userRole)
-      // -------------------------------------------------
+      // 3. Block inactive employees
+      if (profileData.is_active !== true) {
+        await supabase.auth.signOut()
 
-      // 3. Navigate based on role
-      if (userRole === 'admin') {
+        setError(
+          'Your account has been deactivated. Please contact the school administration.'
+        )
+
+        setLoading(false)
+        return
+      }
+
+      // 4. Store the role in localStorage
+      const userRole = profileData.role || 'user'
+
+      localStorage.setItem('UserRole', userRole)
+
+      // 5. Navigate based on role
+      if (
+        userRole === 'admin' ||
+        userRole === 'superadmin'
+      ) {
         router.push('/admin')
       } else {
         router.push('/')
       }
     }
-    
+
     setLoading(false)
   }
 
@@ -107,7 +134,7 @@ export default function AuthPage() {
       setError(error.message)
     } else if (data.user) {
       // Create a temporary success message or redirect logic here
-      setError("Registration successful! Check your email.") 
+      setError("Registration successful! Check your email.")
     }
     setLoading(false)
   }
@@ -124,17 +151,17 @@ export default function AuthPage() {
   return (
     <div className="min-h-screen bg-gradient-to-b from-gray-50 to-gray-200 dark:from-[#0b1220] dark:to-[#05070c] text-gray-900 dark:text-slate-100 transition-colors">
       <Navbar />
-      
+
       <div className="flex items-center justify-center min-h-[calc(100vh-4rem)] p-4">
-        
+
         {/* Glass Card Container */}
-        <motion.div 
+        <motion.div
           initial={{ opacity: 0, scale: 0.95 }}
           animate={{ opacity: 1, scale: 1 }}
           transition={{ duration: 0.4 }}
           className="w-full max-w-md p-6 md:p-8 rounded-2xl border border-gray-200 dark:border-white/10 bg-white/80 dark:bg-white/5 backdrop-blur-xl shadow-xl"
         >
-          
+
           <div className="text-center mb-8">
             <h1 className="text-2xl font-bold tracking-tight mb-2">Welcome Back</h1>
             <p className="text-sm text-gray-500 dark:text-slate-400">
@@ -144,13 +171,13 @@ export default function AuthPage() {
 
           <Tabs defaultValue="login" className="w-full">
             <TabsList className="grid w-full grid-cols-2 mb-6 bg-gray-100 dark:bg-white/10 p-1 rounded-lg">
-              <TabsTrigger 
+              <TabsTrigger
                 value="login"
                 className="data-[state=active]:bg-white data-[state=active]:text-blue-600 dark:data-[state=active]:bg-blue-600 dark:data-[state=active]:text-white transition-all rounded-md"
               >
                 Login
               </TabsTrigger>
-              <TabsTrigger 
+              <TabsTrigger
                 value="register"
                 className="data-[state=active]:bg-white data-[state=active]:text-blue-600 dark:data-[state=active]:bg-blue-600 dark:data-[state=active]:text-white transition-all rounded-md"
               >
@@ -159,7 +186,7 @@ export default function AuthPage() {
             </TabsList>
 
             <AnimatePresence mode="wait">
-              
+
               {/* LOGIN TAB */}
               <TabsContent value="login">
                 <motion.form
@@ -206,8 +233,8 @@ export default function AuthPage() {
                   </div>
 
                   <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}>
-                    <Button 
-                      type="submit" 
+                    <Button
+                      type="submit"
                       className="w-full h-11 bg-blue-600 hover:bg-blue-500 text-white rounded-xl shadow-lg shadow-blue-500/20 transition-all font-medium flex items-center justify-center gap-2"
                       disabled={loading}
                     >
@@ -255,7 +282,7 @@ export default function AuthPage() {
                       required
                       className="pl-10 pr-10 bg-gray-50 dark:bg-white/5 border-gray-200 dark:border-white/10 focus:border-blue-500 dark:focus:border-blue-400 text-gray-900 dark:text-white placeholder:text-gray-400"
                     />
-                     <button
+                    <button
                       type="button"
                       onClick={() => setShowPassword(!showPassword)}
                       className="absolute right-3 top-3 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 transition-colors"
@@ -291,8 +318,8 @@ export default function AuthPage() {
                   </div>
 
                   <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}>
-                    <Button 
-                      type="submit" 
+                    <Button
+                      type="submit"
                       className="w-full h-11 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl shadow-lg shadow-indigo-500/20 transition-all font-medium flex items-center justify-center gap-2"
                       disabled={loading}
                     >
@@ -309,14 +336,13 @@ export default function AuthPage() {
 
           {/* Error Message */}
           {error && (
-            <motion.div 
+            <motion.div
               initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
-              className={`mt-6 p-3 rounded-lg text-sm text-center ${
-                error.includes("successful") 
-                  ? "bg-green-100 text-green-700 dark:bg-green-500/20 dark:text-green-200"
-                  : "bg-red-100 text-red-700 dark:bg-red-500/20 dark:text-red-200"
-              }`}
+              className={`mt-6 p-3 rounded-lg text-sm text-center ${error.includes("successful")
+                ? "bg-green-100 text-green-700 dark:bg-green-500/20 dark:text-green-200"
+                : "bg-red-100 text-red-700 dark:bg-red-500/20 dark:text-red-200"
+                }`}
             >
               {error}
             </motion.div>
