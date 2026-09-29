@@ -24,7 +24,7 @@ export default function AuthPage() {
   // UI States
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [showPassword, setShowPassword] = useState(false) // Toggle for password visibility
+  const [showPassword, setShowPassword] = useState(false)
 
   // ---------------------------------------------------------------------------
   // Handlers
@@ -36,11 +36,10 @@ export default function AuthPage() {
     setError(null)
 
     // 1. Authenticate the user
-    const { data: authData, error: authError } =
-      await supabase.auth.signInWithPassword({
-        email: loginEmail,
-        password: loginPassword,
-      })
+    const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
+      email: loginEmail,
+      password: loginPassword,
+    })
 
     if (authError) {
       setError(authError.message)
@@ -48,61 +47,47 @@ export default function AuthPage() {
       return
     }
 
-    // 2. Check the user's profile and active status
+    // 2. Check the user's profile and active status immediately
     if (authData?.user) {
-      const { data: profileData, error: profileError } =
-        await supabase
-          .from('profiles')
-          .select('role, is_active')
-          .eq('id', authData.user.id)
-          .single()
+      const { data: profileData, error: profileError } = await supabase
+        .from('profiles')
+        .select('role, is_active')
+        .eq('id', authData.user.id)
+        .single()
 
-      // Profile lookup failed
       if (profileError || !profileData) {
-        console.error(
-          'Error fetching user profile:',
-          profileError
-        )
-
+        console.error('Error fetching user profile:', profileError)
         await supabase.auth.signOut()
-
-        setError(
-          'Unable to verify your account. Please try again.'
-        )
-
+        setError('Unable to verify your account. Please try again.')
         setLoading(false)
         return
       }
 
-      // 3. Block inactive employees
+      // 3. Block inactive employees & show error on the login screen
       if (profileData.is_active !== true) {
         await supabase.auth.signOut()
-
-        setError(
-          'Your account has been deactivated. Please contact the school administration.'
-        )
-
+        // Clear any potentially lingering cache
+        localStorage.removeItem(`user_active_${authData.user.id}`)
+        setError('Your account has been deactivated. Please contact the school administration.')
         setLoading(false)
         return
       }
 
-      // 4. Store the role in localStorage
+      // 4. Store role and active status in cache to ensure _app.tsx loads instantly
       const userRole = profileData.role || 'user'
-
       localStorage.setItem('UserRole', userRole)
+      localStorage.setItem(`user_active_${authData.user.id}`, JSON.stringify({
+        isActive: true,
+        timestamp: Date.now()
+      }))
 
-      // 5. Navigate based on role
-      if (
-        userRole === 'admin' ||
-        userRole === 'superadmin'
-      ) {
-        router.push('/admin')
-      } else {
-        router.push('/')
-      }
+      // 5. Navigate based on role using window.location.href 
+      // This forces a hard reload so the middleware reliably catches the new cookies
+      const destination = (userRole === 'admin' || userRole === 'superadmin') ? '/admin' : '/'
+      window.location.href = destination
+    } else {
+      setLoading(false)
     }
-
-    setLoading(false)
   }
 
   const handleRegister = async (e: React.FormEvent) => {
@@ -133,7 +118,6 @@ export default function AuthPage() {
     if (error) {
       setError(error.message)
     } else if (data.user) {
-      // Create a temporary success message or redirect logic here
       setError("Registration successful! Check your email.")
     }
     setLoading(false)
@@ -153,15 +137,12 @@ export default function AuthPage() {
       <Navbar />
 
       <div className="flex items-center justify-center min-h-[calc(100vh-4rem)] p-4">
-
-        {/* Glass Card Container */}
         <motion.div
           initial={{ opacity: 0, scale: 0.95 }}
           animate={{ opacity: 1, scale: 1 }}
           transition={{ duration: 0.4 }}
           className="w-full max-w-md p-6 md:p-8 rounded-2xl border border-gray-200 dark:border-white/10 bg-white/80 dark:bg-white/5 backdrop-blur-xl shadow-xl"
         >
-
           <div className="text-center mb-8">
             <h1 className="text-2xl font-bold tracking-tight mb-2">Welcome Back</h1>
             <p className="text-sm text-gray-500 dark:text-slate-400">
@@ -186,9 +167,8 @@ export default function AuthPage() {
             </TabsList>
 
             <AnimatePresence mode="wait">
-
-              {/* LOGIN TAB */}
-              <TabsContent value="login">
+              {/* LOGIN TAB - Added key prop here */}
+              <TabsContent value="login" key="login-tab">
                 <motion.form
                   key="login-form"
                   onSubmit={handleLogin}
@@ -199,7 +179,6 @@ export default function AuthPage() {
                   variants={fadeIn}
                   transition={{ duration: 0.3 }}
                 >
-                  {/* Email Input */}
                   <div className="relative group">
                     <Mail className="absolute left-3 top-3 h-4 w-4 text-gray-400 group-focus-within:text-blue-500 transition-colors" />
                     <Input
@@ -212,7 +191,6 @@ export default function AuthPage() {
                     />
                   </div>
 
-                  {/* Password Input */}
                   <div className="relative group">
                     <Lock className="absolute left-3 top-3 h-4 w-4 text-gray-400 group-focus-within:text-blue-500 transition-colors" />
                     <Input
@@ -246,8 +224,8 @@ export default function AuthPage() {
                 </motion.form>
               </TabsContent>
 
-              {/* REGISTER TAB */}
-              <TabsContent value="register">
+              {/* REGISTER TAB - Added key prop here */}
+              <TabsContent value="register" key="register-tab">
                 <motion.form
                   key="register-form"
                   onSubmit={handleRegister}
@@ -258,7 +236,6 @@ export default function AuthPage() {
                   variants={fadeIn}
                   transition={{ duration: 0.3 }}
                 >
-                  {/* Register Email */}
                   <div className="relative group">
                     <Mail className="absolute left-3 top-3 h-4 w-4 text-gray-400 group-focus-within:text-blue-500 transition-colors" />
                     <Input
@@ -271,7 +248,6 @@ export default function AuthPage() {
                     />
                   </div>
 
-                  {/* Register Password */}
                   <div className="relative group">
                     <Lock className="absolute left-3 top-3 h-4 w-4 text-gray-400 group-focus-within:text-blue-500 transition-colors" />
                     <Input
@@ -291,7 +267,6 @@ export default function AuthPage() {
                     </button>
                   </div>
 
-                  {/* Confirm Password */}
                   <div className="relative group">
                     <Lock className="absolute left-3 top-3 h-4 w-4 text-gray-400 group-focus-within:text-blue-500 transition-colors" />
                     <Input
@@ -304,7 +279,6 @@ export default function AuthPage() {
                     />
                   </div>
 
-                  {/* Secret Key */}
                   <div className="relative group">
                     <Key className="absolute left-3 top-3 h-4 w-4 text-gray-400 group-focus-within:text-blue-500 transition-colors" />
                     <Input
@@ -330,7 +304,6 @@ export default function AuthPage() {
                   </motion.div>
                 </motion.form>
               </TabsContent>
-
             </AnimatePresence>
           </Tabs>
 
