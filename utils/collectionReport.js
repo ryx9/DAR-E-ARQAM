@@ -143,7 +143,7 @@ export const generateCollectionReportBlob = async (startDate, endDate) => {
 
   sortedGroupedData.forEach((group) => {
     totalAmount += group.amount;
-    
+
     // Accumulate mode totals here
     const modeKey = group.mode.toUpperCase();
     modeTotals[modeKey] = (modeTotals[modeKey] || 0) + group.amount;
@@ -229,7 +229,7 @@ export const generateCollectionReportBlob = async (startDate, endDate) => {
 
   // Fee Type Summary Table
   const feeTypeBody = Object.entries(feeTypeTotals).map(([type, sum]) => [
-    type.toUpperCase(), 
+    type.toUpperCase(),
     sum.toLocaleString()
   ]);
 
@@ -240,11 +240,11 @@ export const generateCollectionReportBlob = async (startDate, endDate) => {
     theme: "grid",
     tableWidth: 230,
     margin: { left: margin },
-    headStyles: { 
-      fillColor: [245, 245, 245], 
-      textColor: [43, 55, 66], 
-      fontStyle: "bold", 
-      fontSize: 8 
+    headStyles: {
+      fillColor: [245, 245, 245],
+      textColor: [43, 55, 66],
+      fontStyle: "bold",
+      fontSize: 8
     },
     bodyStyles: { fontSize: 8, textColor: 50 },
     columnStyles: { 1: { halign: "right", fontStyle: "bold" } }
@@ -252,7 +252,7 @@ export const generateCollectionReportBlob = async (startDate, endDate) => {
 
   // Payment Mode Summary Table (Rendered next to Fee Type table)
   const modeBody = Object.entries(modeTotals).map(([mode, sum]) => [
-    mode.toUpperCase(), 
+    mode.toUpperCase(),
     sum.toLocaleString()
   ]);
 
@@ -263,11 +263,11 @@ export const generateCollectionReportBlob = async (startDate, endDate) => {
     theme: "grid",
     tableWidth: 190,
     margin: { left: margin + 260 },
-    headStyles: { 
-      fillColor: [245, 245, 245], 
-      textColor: [43, 55, 66], 
-      fontStyle: "bold", 
-      fontSize: 8 
+    headStyles: {
+      fillColor: [245, 245, 245],
+      textColor: [43, 55, 66],
+      fontStyle: "bold",
+      fontSize: 8
     },
     bodyStyles: { fontSize: 8, textColor: 50 },
     columnStyles: { 1: { halign: "right", fontStyle: "bold" } }
