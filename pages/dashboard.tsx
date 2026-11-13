@@ -1,11 +1,13 @@
+
 import { useState, useEffect } from 'react'
+import Link from 'next/link'
 import { supabase } from '../utils/supabaseClient'
 import { useRouter } from 'next/router'
 import { Button } from '../components/ui/button'
 import { Input } from '../components/ui/input'
 import Navbar from '../components/Navbar'
 import Loader from '../components/Loader'
-import { Plus, Edit, Trash2, Users, Calendar, ArrowRight, Layers } from 'lucide-react'
+import { Plus, Edit, Trash2, Users, Calendar, ArrowRight, Layers, BarChart2, ArrowUpRight } from 'lucide-react'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "../components/ui/dialog"
 import { useToast } from "../hooks/use-toast"
 import { motion, AnimatePresence } from 'framer-motion'
@@ -21,7 +23,7 @@ const fetchWithPagination = async (query: any) => {
   while (hasMore) {
     const { data, error } = await query.range(from, from + limit - 1);
     if (error) throw error;
-    
+
     if (data) {
       allData = [...allData, ...data];
       if (data.length < limit) hasMore = false;
@@ -44,12 +46,12 @@ interface Class {
 
 export default function Dashboard() {
   const [classes, setClasses] = useState<Class[]>([])
-  
+
   // Form States
   const [newClassName, setNewClassName] = useState('')
   const [newClassDescription, setNewClassDescription] = useState('')
   const [editingClass, setEditingClass] = useState<Class | null>(null)
-  
+
   // UI States
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false)
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false)
@@ -64,7 +66,7 @@ export default function Dashboard() {
   const { toast } = useToast()
 
   // ADDED: Check local storage for user role on mount
-  useEffect(() => { 
+  useEffect(() => {
     fetchClasses();
     const storedRole = localStorage.getItem('UserRole');
     setUserRole(storedRole);
@@ -103,7 +105,7 @@ export default function Dashboard() {
 
           // Count Days
           const attendanceData = await fetchWithPagination(
-             supabase.from('attendance').select('date').eq('class_id', cls.id)
+            supabase.from('attendance').select('date').eq('class_id', cls.id)
           );
           const uniqueDates = new Set((attendanceData || []).map((r: any) => r.date))
 
@@ -178,7 +180,7 @@ export default function Dashboard() {
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-[#0f172a] dark:bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] dark:from-slate-900 dark:via-[#0a0f1d] dark:to-black text-slate-900 dark:text-slate-100 font-sans selection:bg-blue-500/30 transition-colors duration-300">
       <Navbar />
-      
+
       <main className="max-w-7xl mx-auto px-6 py-10 space-y-8">
         <Breadcrumbs items={[{ label: 'Dashboard', href: '/dashboard' }]} />
 
@@ -211,6 +213,36 @@ export default function Dashboard() {
           )}
         </div>
 
+        {/* ACADEMIC REPORTS */}
+        <div className="grid grid-cols-1 gap-4">
+          <Link
+            href="/reports"
+            className="group relative flex flex-col justify-between p-5 rounded-3xl border border-indigo-200/80 dark:border-indigo-500/20 bg-gradient-to-br from-indigo-50/80 via-white to-white dark:from-indigo-950/30 dark:via-slate-900 dark:to-slate-900 shadow-md hover:shadow-xl hover:shadow-indigo-500/10 hover:-translate-y-1 transition-all duration-300"
+          >
+            <div>
+              <div className="flex items-center justify-between mb-3">
+                <div className="w-10 h-10 rounded-2xl bg-indigo-600 text-white flex items-center justify-center shadow-md shadow-indigo-500/20 group-hover:scale-110 transition-transform">
+                  <BarChart2 className="w-5 h-5" />
+                </div>
+                <span className="text-[10px] font-black uppercase tracking-wider px-2.5 py-1 rounded-full bg-indigo-100 dark:bg-indigo-900/50 text-indigo-700 dark:text-indigo-300">
+                  Analytics Hub
+                </span>
+              </div>
+              <h3 className="font-extrabold text-lg text-slate-900 dark:text-white group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition-colors">
+                Academic Reports
+              </h3>
+              <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 line-clamp-2">
+                Analytics, grade sheets, class comparisons, student report cards, and WhatsApp in one place.
+              </p>
+            </div>
+            <div className="mt-4 pt-3 border-t border-slate-100 dark:border-white/5 flex items-center justify-between text-xs font-bold text-indigo-600 dark:text-indigo-400">
+              <span>Open Reports</span>
+              <ArrowUpRight className="w-4 h-4 group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-transform" />
+            </div>
+          </Link>
+
+        </div>
+
         {/* PREMIUM CARD GRID */}
         <motion.div layout className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           <AnimatePresence mode='popLayout'>
@@ -222,9 +254,9 @@ export default function Dashboard() {
                 exit={{ opacity: 0, scale: 0.9 }}
                 transition={{ duration: 0.4, type: "spring", bounce: 0.3, delay: index * 0.05 }}
               >
-                <div 
-                    onClick={() => router.push(`/class/${cls.id}`)}
-                    className="group relative h-full flex flex-col justify-between p-5 cursor-pointer
+                <div
+                  onClick={() => router.push(`/class/${cls.id}`)}
+                  className="group relative h-full flex flex-col justify-between p-5 cursor-pointer
                     rounded-[2rem] 
                     border border-slate-200 dark:border-white/10
                     bg-white dark:bg-transparent dark:bg-gradient-to-br dark:from-white/[0.08] dark:to-transparent backdrop-blur-2xl
@@ -232,61 +264,59 @@ export default function Dashboard() {
                     hover:scale-[1.02] hover:-translate-y-1 hover:shadow-2xl hover:shadow-blue-500/10 dark:hover:from-white/[0.12]
                     transition-all duration-300 ease-out overflow-hidden"
                 >
-                  
+
                   {/* Top Section: Identity & Status */}
                   <div className="space-y-3 z-10">
                     <div className="flex justify-between items-start">
-                        {/* ID Badge */}
-                        <span className="text-[10px] font-black tracking-widest text-slate-500 dark:text-slate-400 bg-slate-100 dark:bg-black/40 px-3 py-1 rounded-full border border-slate-200 dark:border-white/10">
-                            #{cls.id}
-                        </span>
+                      {/* ID Badge */}
+                      <span className="text-[10px] font-black tracking-widest text-slate-500 dark:text-slate-400 bg-slate-100 dark:bg-black/40 px-3 py-1 rounded-full border border-slate-200 dark:border-white/10">
+                        #{cls.id}
+                      </span>
 
-                        {/* Status Dot */}
-                        <div className={`relative flex items-center justify-center w-3 h-3 rounded-full ${
-                            cls.attendanceMarkedToday ? 'bg-emerald-500 dark:bg-emerald-400' : 'bg-rose-500'
+                      {/* Status Dot */}
+                      <div className={`relative flex items-center justify-center w-3 h-3 rounded-full ${cls.attendanceMarkedToday ? 'bg-emerald-500 dark:bg-emerald-400' : 'bg-rose-500'
                         }`}>
-                            <span className={`absolute inset-0 rounded-full animate-ping opacity-75 ${
-                                cls.attendanceMarkedToday ? 'bg-emerald-500 dark:bg-emerald-400' : 'bg-rose-500'
-                            }`}></span>
-                        </div>
+                        <span className={`absolute inset-0 rounded-full animate-ping opacity-75 ${cls.attendanceMarkedToday ? 'bg-emerald-500 dark:bg-emerald-400' : 'bg-rose-500'
+                          }`}></span>
+                      </div>
                     </div>
 
                     <div>
-                        {/* Title & Desc */}
-                        <h3 className="text-2xl font-extrabold tracking-tight text-slate-900 dark:text-white group-hover:text-blue-600 dark:group-hover:text-blue-300 transition-colors">
-                            {cls.name}
-                        </h3>
-                        <p className="text-sm text-slate-500 dark:text-slate-400 font-medium line-clamp-1 mt-0.5">
-                            {cls.description || "No description provided."}
-                        </p>
+                      {/* Title & Desc */}
+                      <h3 className="text-2xl font-extrabold tracking-tight text-slate-900 dark:text-white group-hover:text-blue-600 dark:group-hover:text-blue-300 transition-colors">
+                        {cls.name}
+                      </h3>
+                      <p className="text-sm text-slate-500 dark:text-slate-400 font-medium line-clamp-1 mt-0.5">
+                        {cls.description || "No description provided."}
+                      </p>
                     </div>
                   </div>
 
                   {/* Middle Section: Stats Boxes */}
                   <div className="grid grid-cols-2 gap-3 my-4 z-10">
-                    
+
                     {/* Student Count Box */}
                     <div className="flex flex-col items-start justify-center p-3 rounded-3xl bg-slate-50 dark:bg-black/30 border border-slate-100 dark:border-white/5 relative overflow-hidden group/stat">
-                        <div className="absolute inset-0 bg-blue-500/10 dark:bg-blue-500/20 opacity-0 group-hover/stat:opacity-100 transition-opacity blurred-xl"></div>
-                        <Users className="w-4 h-4 text-blue-500 dark:text-blue-400 mb-2 relative z-10" />
-                        <span className="text-3xl font-black text-slate-900 dark:text-white relative z-10 leading-none">
-                            {cls.studentCount}
-                        </span>
-                        <span className="text-[10px] font-bold uppercase tracking-widest text-slate-500 dark:text-slate-500 relative z-10 mt-1">
-                            Students
-                        </span>
+                      <div className="absolute inset-0 bg-blue-500/10 dark:bg-blue-500/20 opacity-0 group-hover/stat:opacity-100 transition-opacity blurred-xl"></div>
+                      <Users className="w-4 h-4 text-blue-500 dark:text-blue-400 mb-2 relative z-10" />
+                      <span className="text-3xl font-black text-slate-900 dark:text-white relative z-10 leading-none">
+                        {cls.studentCount}
+                      </span>
+                      <span className="text-[10px] font-bold uppercase tracking-widest text-slate-500 dark:text-slate-500 relative z-10 mt-1">
+                        Students
+                      </span>
                     </div>
 
                     {/* Days Count Box */}
                     <div className="flex flex-col items-start justify-center p-3 rounded-3xl bg-slate-50 dark:bg-black/30 border border-slate-100 dark:border-white/5 relative overflow-hidden group/stat">
-                         <div className="absolute inset-0 bg-purple-500/10 dark:bg-purple-500/20 opacity-0 group-hover/stat:opacity-100 transition-opacity blurred-xl"></div>
-                        <Calendar className="w-4 h-4 text-purple-500 dark:text-purple-400 mb-2 relative z-10" />
-                        <span className="text-3xl font-black text-slate-900 dark:text-white relative z-10 leading-none">
-                            {cls.totalClassDays}
-                        </span>
-                        <span className="text-[10px] font-bold uppercase tracking-widest text-slate-500 dark:text-slate-500 relative z-10 mt-1">
-                            Days
-                        </span>
+                      <div className="absolute inset-0 bg-purple-500/10 dark:bg-purple-500/20 opacity-0 group-hover/stat:opacity-100 transition-opacity blurred-xl"></div>
+                      <Calendar className="w-4 h-4 text-purple-500 dark:text-purple-400 mb-2 relative z-10" />
+                      <span className="text-3xl font-black text-slate-900 dark:text-white relative z-10 leading-none">
+                        {cls.totalClassDays}
+                      </span>
+                      <span className="text-[10px] font-bold uppercase tracking-widest text-slate-500 dark:text-slate-500 relative z-10 mt-1">
+                        Days
+                      </span>
                     </div>
                   </div>
 
@@ -296,28 +326,28 @@ export default function Dashboard() {
                     <div className="flex gap-2 min-w-[80px]" onClick={(e) => e.stopPropagation()}>
                       {canEditOrDelete && (
                         <>
-                          <Button 
-                              variant="ghost" 
-                              size="icon" 
-                              className="h-9 w-9 rounded-full bg-slate-100 dark:bg-black/40 hover:bg-blue-600 dark:hover:bg-blue-600/80 text-slate-600 dark:text-slate-300 hover:text-white border border-slate-200 dark:border-white/10 transition-all"
-                              onClick={(e) => {
-                                  e.stopPropagation();
-                                  setEditingClass(cls); setNewClassName(cls.name); setNewClassDescription(cls.description);
-                                  setIsEditDialogOpen(true);
-                              }}
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-9 w-9 rounded-full bg-slate-100 dark:bg-black/40 hover:bg-blue-600 dark:hover:bg-blue-600/80 text-slate-600 dark:text-slate-300 hover:text-white border border-slate-200 dark:border-white/10 transition-all"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setEditingClass(cls); setNewClassName(cls.name); setNewClassDescription(cls.description);
+                              setIsEditDialogOpen(true);
+                            }}
                           >
-                              <Edit className="w-4 h-4" />
+                            <Edit className="w-4 h-4" />
                           </Button>
-                          <Button 
-                              variant="ghost" 
-                              size="icon" 
-                              className="h-9 w-9 rounded-full bg-slate-100 dark:bg-black/40 hover:bg-rose-600 dark:hover:bg-rose-600/80 text-slate-600 dark:text-slate-300 hover:text-white border border-slate-200 dark:border-white/10 transition-all"
-                              onClick={(e) => {
-                                  e.stopPropagation();
-                                  setDeleteClassId(cls.id); setIsDeleteDialogOpen(true);
-                              }}
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-9 w-9 rounded-full bg-slate-100 dark:bg-black/40 hover:bg-rose-600 dark:hover:bg-rose-600/80 text-slate-600 dark:text-slate-300 hover:text-white border border-slate-200 dark:border-white/10 transition-all"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setDeleteClassId(cls.id); setIsDeleteDialogOpen(true);
+                            }}
                           >
-                              <Trash2 className="w-4 h-4" />
+                            <Trash2 className="w-4 h-4" />
                           </Button>
                         </>
                       )}
@@ -325,13 +355,13 @@ export default function Dashboard() {
 
                     {/* Enter Button */}
                     <div className="h-9 px-4 rounded-full bg-slate-100 dark:bg-white/5 border border-slate-200 dark:border-white/10 flex items-center gap-2 group-hover:bg-blue-600 group-hover:border-blue-500 text-slate-700 dark:text-slate-300 group-hover:text-white transition-all duration-300">
-                        <span className="text-xs font-bold uppercase tracking-wider">Enter</span>
-                        <ArrowRight className="w-4 h-4" />
+                      <span className="text-xs font-bold uppercase tracking-wider">Enter</span>
+                      <ArrowRight className="w-4 h-4" />
                     </div>
                   </div>
 
-                 {/* Glossy overlay effect */}
-                 <div className="absolute inset-0 rounded-[2rem] bg-gradient-to-t from-transparent via-transparent to-white/40 dark:to-white/5 pointer-events-none z-0"></div>
+                  {/* Glossy overlay effect */}
+                  <div className="absolute inset-0 rounded-[2rem] bg-gradient-to-t from-transparent via-transparent to-white/40 dark:to-white/5 pointer-events-none z-0"></div>
 
                 </div>
               </motion.div>

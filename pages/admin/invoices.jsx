@@ -163,14 +163,14 @@ function InvoicesPageContent() {
   }
 
   // --- Styles ---
-  const glassPanel = "bg-white/70 dark:bg-white/5 backdrop-blur-2xl border border-white/40 dark:border-white/10 shadow-xl shadow-indigo-100/20 dark:shadow-none rounded-2xl"
-  const glassInput = "bg-white/50 dark:bg-white/5 border-indigo-100 dark:border-white/10 focus:border-indigo-400 focus:ring-4 focus:ring-indigo-100 dark:focus:ring-indigo-900/30 transition-all duration-300 placeholder:text-slate-400 text-sm"
-  const tableHead = "px-6 py-4 text-left text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider bg-indigo-50/50 dark:bg-white/5 backdrop-blur-sm sticky top-0 z-20"
+  const glassPanel = "bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-xl shadow-slate-200/30 dark:shadow-none rounded-2xl"
+  const glassInput = "bg-white dark:bg-slate-800/70 border-slate-200 dark:border-slate-700 focus:border-indigo-400 focus:ring-4 focus:ring-indigo-100 dark:focus:ring-indigo-900/30 transition-all duration-300 placeholder:text-slate-400 text-sm"
+  const tableHead = "px-6 py-4 text-left text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider bg-slate-50 dark:bg-slate-800/70 sticky top-0 z-20"
   
   return (
     <>
       <Navbar />
-      <div className="min-h-screen bg-[conic-gradient(at_top_left,_var(--tw-gradient-stops))] from-indigo-100 via-purple-50 to-pink-100 dark:from-[#0f172a] dark:via-[#1e1b4b] dark:to-[#17101f] p-4 md:p-8 font-sans">
+      <div className="min-h-screen bg-slate-50 dark:bg-slate-950 p-4 md:p-8 font-sans">
         
         <div className="w-full max-w-7xl mx-auto space-y-6">
 
@@ -211,7 +211,7 @@ function InvoicesPageContent() {
           <div className={`${glassPanel} flex flex-col overflow-hidden`}>
             
             {/* FILTERS TOOLBAR */}
-            <div className="p-5 border-b border-indigo-100 dark:border-white/5 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-12 gap-4 items-center bg-white/30 dark:bg-black/20">
+            <div className="p-5 border-b border-slate-200 dark:border-slate-800 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-12 gap-4 items-center bg-slate-50 dark:bg-slate-900">
               
               {/* Search */}
               <div className="lg:col-span-4 relative group">
@@ -450,7 +450,7 @@ function InvoicesPageContent() {
             </div>
 
             {/* --- PAGINATION FOOTER --- */}
-            <div className="px-6 py-4 border-t border-indigo-100 dark:border-white/5 bg-white/40 dark:bg-black/20 flex flex-col sm:flex-row items-center justify-between gap-4">
+            <div className="px-6 py-4 border-t border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900 flex flex-col sm:flex-row items-center justify-between gap-4">
                <div className="text-xs text-slate-500 font-medium order-2 sm:order-1">
                  Showing <span className="text-slate-900 dark:text-white font-bold">{invoices.length > 0 ? page * ITEMS_PER_PAGE + 1 : 0}</span> - <span className="text-slate-900 dark:text-white font-bold">{Math.min((page + 1) * ITEMS_PER_PAGE, totalCount)}</span> of <span className="text-slate-900 dark:text-white font-bold">{totalCount}</span>
                </div>
@@ -487,7 +487,7 @@ function InvoicesPageContent() {
 
 export default function InvoicesPage() {
   return (
-    <Suspense fallback={<div className="h-screen w-full flex items-center justify-center bg-indigo-50"><Loader /></div>}>
+    <Suspense fallback={<div className="h-screen w-full flex items-center justify-center bg-slate-50 dark:bg-slate-950"><Loader /></div>}>
       <InvoicesPageContent />
     </Suspense>
   )
