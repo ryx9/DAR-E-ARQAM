@@ -6,6 +6,12 @@
   :root {
     --background: 0 0% 100%;
     --foreground: 222.2 84% 4.9%;
+    --page-surface-color: #edf3fb;
+    --page-surface-image:
+      radial-gradient(ellipse 68% 78% at 4% 0%, rgba(37, 99, 235, 0.15), transparent 72%),
+      radial-gradient(ellipse 56% 68% at 100% 12%, rgba(29, 78, 216, 0.12), transparent 72%),
+      radial-gradient(ellipse 52% 58% at 78% 100%, rgba(59, 130, 246, 0.1), transparent 74%),
+      linear-gradient(122deg, #f8faff 0%, #eaf1fa 48%, #f2f6fc 100%);
     --card: 0 0% 100%;
     --card-foreground: 222.2 84% 4.9%;
     --popover: 0 0% 100%;
@@ -29,6 +35,12 @@
   .dark {
     --background: 0 0% 0%;
     --foreground: 0 0% 98%;
+    --page-surface-color: #030813;
+    --page-surface-image:
+      radial-gradient(ellipse 76% 74% at 0% 0%, rgba(37, 99, 235, 0.34), transparent 70%),
+      radial-gradient(ellipse 62% 70% at 100% 8%, rgba(29, 78, 216, 0.3), transparent 72%),
+      radial-gradient(ellipse 64% 58% at 78% 108%, rgba(30, 64, 175, 0.24), transparent 72%),
+      linear-gradient(128deg, #030813 0%, #07152c 34%, #0a1e3d 66%, #071329 100%);
     --card: 0 0% 5%;
     --card-foreground: 0 0% 98%;
     --popover: 0 0% 5%;
@@ -66,6 +78,127 @@
   }
   body {
     @apply bg-background text-foreground;
+    background-color: var(--page-surface-color) !important;
+    background-image: var(--page-surface-image) !important;
+    background-repeat: no-repeat;
+    background-attachment: fixed;
+  }
+  #__next > :first-child {
+    background-color: var(--page-surface-color) !important;
+    background-image: var(--page-surface-image) !important;
+    background-repeat: no-repeat;
+    background-attachment: fixed;
+  }
+}
+
+@media screen {
+  .min-h-screen {
+    background-color: var(--page-surface-color) !important;
+    background-image: var(--page-surface-image) !important;
+    background-repeat: no-repeat;
+    background-attachment: fixed;
+  }
+}
+
+@layer components {
+  .navbar-glass {
+    position: relative;
+    isolation: isolate;
+    overflow: hidden;
+    background: linear-gradient(
+      110deg,
+      rgba(210, 226, 247, 0.78),
+      rgba(195, 216, 243, 0.67) 52%,
+      rgba(207, 224, 247, 0.75)
+    );
+    -webkit-backdrop-filter: blur(36px) saturate(190%) contrast(108%);
+    backdrop-filter: blur(36px) saturate(190%) contrast(108%);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.62);
+    box-shadow:
+      0 1px 0 rgba(57, 91, 137, 0.16),
+      0 12px 36px rgba(27, 55, 96, 0.12),
+      inset 0 1px 0 rgba(255, 255, 255, 0.72);
+    animation: navbar-enter 700ms cubic-bezier(0.2, 0.75, 0.25, 1) both;
+    transition: background 350ms ease, box-shadow 350ms ease;
+  }
+
+  .navbar-glass::after {
+    position: absolute;
+    z-index: 1;
+    top: 0;
+    left: -38%;
+    width: 34%;
+    height: 1px;
+    background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.95), transparent);
+    content: "";
+    pointer-events: none;
+    animation: navbar-glint 1400ms 450ms ease-out both;
+  }
+
+  .navbar-glass:hover {
+    box-shadow:
+      0 1px 0 rgba(57, 91, 137, 0.19),
+      0 14px 40px rgba(27, 55, 96, 0.15),
+      inset 0 1px 0 rgba(255, 255, 255, 0.8);
+  }
+
+  .dark .navbar-glass {
+    background: linear-gradient(
+      110deg,
+      rgba(7, 18, 38, 0.78),
+      rgba(12, 30, 59, 0.7) 52%,
+      rgba(14, 27, 53, 0.76)
+    );
+    border-bottom-color: rgba(191, 219, 254, 0.14);
+    box-shadow:
+      0 1px 0 rgba(96, 165, 250, 0.12),
+      0 14px 40px rgba(0, 0, 0, 0.3),
+      inset 0 1px 0 rgba(219, 234, 254, 0.1);
+    -webkit-backdrop-filter: blur(40px) saturate(185%) contrast(110%);
+    backdrop-filter: blur(40px) saturate(185%) contrast(110%);
+  }
+
+  .dark .navbar-glass:hover {
+    box-shadow:
+      0 1px 0 rgba(96, 165, 250, 0.16),
+      0 16px 44px rgba(0, 0, 0, 0.36),
+      inset 0 1px 0 rgba(219, 234, 254, 0.13);
+  }
+
+  .dark .navbar-glass::after {
+    background: linear-gradient(90deg, transparent, rgba(147, 197, 253, 0.9), transparent);
+  }
+}
+
+@keyframes navbar-enter {
+  from {
+    opacity: 0;
+    transform: translateY(-14px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes navbar-glint {
+  from {
+    left: -38%;
+    opacity: 0;
+  }
+  20% {
+    opacity: 0.8;
+  }
+  to {
+    left: 110%;
+    opacity: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .navbar-glass,
+  .navbar-glass::after {
+    animation: none;
   }
 }
 
@@ -135,4 +268,3 @@
     opacity: 0;
   }
 }
-

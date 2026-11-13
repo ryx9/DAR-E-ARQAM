@@ -201,10 +201,7 @@ const Navbar = () => {
     <>
       {/* FIXED HEADER */}
       <nav
-        className="fixed top-0 left-0 right-0 z-[100] h-20 transition-all
-        bg-white/80 dark:bg-gray-950/80 
-        backdrop-blur-2xl backdrop-saturate-200 
-        border-b border-gray-200/50 dark:border-white/10 shadow-sm"
+        className="navbar-glass fixed top-0 left-0 right-0 z-[100] h-20 transition-all"
       >
         <div className="container mx-auto px-4 h-full flex justify-between items-center">
           {/* Logo Area */}
