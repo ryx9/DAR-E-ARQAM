@@ -1,6 +1,7 @@
 import { jsPDF } from "jspdf";
 import autoTable from "jspdf-autotable";
 import { supabase } from "./supabaseClient";
+import { drawSchoolHeader, loadSchoolLogo } from './pdfBranding';
 
 export const generateCollectionReportBlob = async (startDate, endDate) => {
   // --- 1. Fetch data from Supabase using Pagination ---
@@ -106,6 +107,7 @@ export const generateCollectionReportBlob = async (startDate, endDate) => {
   const pageWidth = doc.internal.pageSize.getWidth();
   const pageHeight = doc.internal.pageSize.getHeight();
   const margin = 40;
+  const logo = await loadSchoolLogo();
 
   // Header Section
   doc.setTextColor(43, 55, 66); // Dark sleek color
@@ -169,63 +171,61 @@ export const generateCollectionReportBlob = async (startDate, endDate) => {
       ""
     ]],
     showFoot: "lastPage",
-    theme: "striped",
-    margin: { left: margin, right: margin, bottom: 50 },
+    theme: "grid",
+    rowPageBreak: "avoid",
+    margin: { left: margin, right: margin, top: 85, bottom: 50 },
     headStyles: {
-      fillColor: [43, 55, 66], // Modern dark slate
-      textColor: 255,
+      fillColor: [235, 238, 244],
+      textColor: [30, 41, 59],
       fontStyle: "bold",
-      fontSize: 8,
-      cellPadding: 6,
+      fontSize: 7.5,
+      cellPadding: { top: 2, bottom: 2, left: 3, right: 3 },
+      lineColor: [203, 213, 225],
+      lineWidth: 0.35,
     },
     bodyStyles: {
-      fontSize: 8,
+      fontSize: 7.5,
       textColor: 40,
-      cellPadding: 5,
+      cellPadding: { top: 1.5, bottom: 1.5, left: 3, right: 3 },
+      lineColor: [215, 222, 231],
+      lineWidth: 0.35,
+      valign: "middle",
     },
     footStyles: {
       fillColor: [236, 240, 241], // Light grey for grand total
       textColor: [43, 55, 66],
       fontStyle: "bold",
-      fontSize: 9,
-      cellPadding: 6,
+      fontSize: 7.5,
+      cellPadding: 2,
+      lineColor: [203, 213, 225],
+      lineWidth: 0.35,
     },
+    alternateRowStyles: { fillColor: [248, 250, 252] },
     columnStyles: {
-      0: { cellWidth: 55 },
-      1: { cellWidth: 100 },
-      2: { cellWidth: 60 },
+      0: { cellWidth: 52 },
+      1: { cellWidth: 105 },
+      2: { cellWidth: 50 },
       3: { cellWidth: "auto" },
-      4: { halign: "right", cellWidth: 80, fontStyle: "bold", textColor: 20 },
-      5: { halign: "center", cellWidth: 50 },
+      4: { halign: "right", cellWidth: 70, fontStyle: "bold", textColor: 20 },
+      5: { halign: "center", cellWidth: 55 },
     },
-    didDrawPage: function (data) {
-      doc.setFontSize(8);
-      doc.setTextColor(150, 150, 150);
-      doc.text(
-        `PAGE ${data.pageNumber} OF ${doc.internal.getNumberOfPages()}`,
-        pageWidth / 2,
-        pageHeight - 20,
-        { align: "center" }
-      );
-    }
   });
 
-  // --- 6. Render Separate Summary Tables (Side by Side) ---
+  // --- 6. Summary tables ---
   let finalY = doc.lastAutoTable.finalY;
-  let summaryY = finalY + 30;
+  let summaryY = finalY + 22;
 
   // Check if there's enough space for the summary tables, otherwise push to next page
   if (summaryY > pageHeight - 120) {
     doc.addPage();
-    summaryY = 50;
+    summaryY = 85;
   }
 
   // Section Titles
   doc.setFontSize(9);
   doc.setFont("helvetica", "bold");
   doc.setTextColor(43, 55, 66);
-  doc.text("SUMMARY BY FEE TYPE", margin, summaryY);
-  doc.text("SUMMARY BY PAYMENT MODE", margin + 260, summaryY);
+  doc.text("COLLECTION SUMMARY", margin, summaryY);
 
   // Fee Type Summary Table
   const feeTypeBody = Object.entries(feeTypeTotals).map(([type, sum]) => [
@@ -233,45 +233,37 @@ export const generateCollectionReportBlob = async (startDate, endDate) => {
     sum.toLocaleString()
   ]);
 
-  autoTable(doc, {
-    startY: summaryY + 10,
-    head: [["FEE TYPE", "AMOUNT (PKR)"]],
-    body: feeTypeBody,
-    theme: "grid",
-    tableWidth: 230,
-    margin: { left: margin },
-    headStyles: {
-      fillColor: [245, 245, 245],
-      textColor: [43, 55, 66],
-      fontStyle: "bold",
-      fontSize: 8
-    },
-    bodyStyles: { fontSize: 8, textColor: 50 },
-    columnStyles: { 1: { halign: "right", fontStyle: "bold" } }
-  });
-
-  // Payment Mode Summary Table (Rendered next to Fee Type table)
   const modeBody = Object.entries(modeTotals).map(([mode, sum]) => [
     mode.toUpperCase(),
     sum.toLocaleString()
   ]);
 
   autoTable(doc, {
-    startY: summaryY + 10,
-    head: [["PAYMENT MODE", "AMOUNT (PKR)"]],
-    body: modeBody,
+    startY: summaryY + 8,
+    head: [["FEE TYPE", "AMOUNT (PKR)", "PAYMENT MODE", "AMOUNT (PKR)"]],
+    body: Array.from({ length: Math.max(feeTypeBody.length, modeBody.length) }, (_, i) => [
+      ...(feeTypeBody[i] || ['', '']), ...(modeBody[i] || ['', '']),
+    ]),
     theme: "grid",
-    tableWidth: 190,
-    margin: { left: margin + 260 },
+    tableWidth: pageWidth - margin * 2,
+    margin: { left: margin, right: margin, top: 85, bottom: 50 },
     headStyles: {
-      fillColor: [245, 245, 245],
+      fillColor: [235, 238, 244],
       textColor: [43, 55, 66],
       fontStyle: "bold",
       fontSize: 8
     },
-    bodyStyles: { fontSize: 8, textColor: 50 },
-    columnStyles: { 1: { halign: "right", fontStyle: "bold" } }
+    styles: { fontSize: 7.5, cellPadding: { top: 1.5, bottom: 1.5, left: 3, right: 3 }, lineColor: [215, 222, 231], lineWidth: 0.35, textColor: [30, 41, 59] },
+    alternateRowStyles: { fillColor: [248, 250, 252] },
+    columnStyles: { 1: { halign: "right", fontStyle: "bold" }, 3: { halign: "right", fontStyle: "bold" } }
   });
 
+  const totalPages = doc.internal.getNumberOfPages();
+  for (let page = 1; page <= totalPages; page++) {
+    doc.setPage(page);
+    drawSchoolHeader(doc, { logo, title: 'FEE COLLECTION REPORT', subtitle: `Period: ${dateRangeString}` });
+    doc.setFont('helvetica', 'normal'); doc.setFontSize(8); doc.setTextColor(100, 116, 139);
+    doc.text(`Page ${page} of ${totalPages}`, pageWidth - margin, pageHeight - 20, { align: 'right' });
+  }
   return doc.output("blob");
 };

@@ -1,5 +1,6 @@
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
+import { drawSchoolHeader, loadSchoolLogo } from './pdfBranding';
 
 const money = value =>
   `PKR ${Number(value || 0).toLocaleString('en-PK', { maximumFractionDigits: 2 })}`;
@@ -11,26 +12,6 @@ const date = value =>
         year: 'numeric',
       })
     : '—';
-
-const drawHeader = (doc, title, range) => {
-  const width = doc.internal.pageSize.getWidth();
-  doc.setFillColor(15, 23, 42);
-  doc.rect(0, 0, width, 25, 'F');
-  doc.setTextColor(255, 255, 255);
-  doc.setFont('helvetica', 'bold');
-  doc.setFontSize(14);
-  doc.text('DAR-E-ARQAM SCHOOL', 14, 11);
-  doc.setFontSize(10);
-  doc.text(title, width - 14, 11, { align: 'right' });
-  doc.setFont('helvetica', 'normal');
-  doc.setFontSize(7.5);
-  doc.setTextColor(203, 213, 225);
-  doc.text(
-    `Invoice period: ${date(range.start)} to ${date(range.end)}  •  Generated: ${new Date().toLocaleString('en-PK')}`,
-    14,
-    18
-  );
-};
 
 export const downloadStatementCsv = (statements, range) => {
   const rows = [
@@ -102,7 +83,9 @@ export const downloadStatementCsv = (statements, range) => {
   setTimeout(() => URL.revokeObjectURL(url), 1000);
 };
 
-export const downloadStatementPdf = (statements, range) => {
+export const downloadStatementPdf = async (statements, range) => {
+  const logo = await loadSchoolLogo();
+  const drawHeader = () => drawSchoolHeader(doc, { logo, title: 'STUDENT FEE STATEMENT', subtitle: `${date(range.start)} to ${date(range.end)}` });
   const doc = new jsPDF('portrait', 'mm', 'a4');
   const width = doc.internal.pageSize.getWidth();
   const height = doc.internal.pageSize.getHeight();
@@ -111,7 +94,7 @@ export const downloadStatementPdf = (statements, range) => {
   statements.forEach(statement => {
     if (!first) doc.addPage();
     first = false;
-    drawHeader(doc, 'STUDENT FEE STATEMENT', range);
+    drawHeader();
 
     doc.setTextColor(15, 23, 42);
     doc.setFont('helvetica', 'bold');
@@ -137,7 +120,7 @@ export const downloadStatementPdf = (statements, range) => {
     statement.months.forEach(month => {
       if (cursor > height - 45) {
         doc.addPage();
-        drawHeader(doc, 'STUDENT FEE STATEMENT', range);
+        drawHeader();
         cursor = 32;
       }
       doc.setFillColor(226, 232, 240);
@@ -201,7 +184,7 @@ export const downloadStatementPdf = (statements, range) => {
         ],
         body,
         theme: 'grid',
-        margin: { left: 14, right: 14, bottom: 18 },
+        margin: { left: 14, right: 14, top: 28, bottom: 18 },
         styles: {
           font: 'helvetica',
           fontSize: 6.1,
@@ -211,12 +194,13 @@ export const downloadStatementPdf = (statements, range) => {
           valign: 'middle',
         },
         headStyles: {
-          fillColor: [30, 41, 59],
-          textColor: [255, 255, 255],
+          fillColor: [235, 238, 244],
+          textColor: [30, 41, 59],
           fontStyle: 'bold',
           fontSize: 6.1,
         },
         alternateRowStyles: { fillColor: [248, 250, 252] },
+        didDrawPage: data => { if (data.pageNumber > 1) drawHeader(); },
         columnStyles: {
           0: { cellWidth: 16 },
           1: { cellWidth: 20 },

@@ -10,8 +10,7 @@ import {
   FileText, GraduationCap, ChevronRight
 } from "lucide-react"
 import { useToast } from "../../hooks/use-toast"
-import { jsPDF } from "jspdf"
-import autoTable from "jspdf-autotable"
+import { exportFeeAnalyticsPDF } from "../../utils/feeAnalyticsPDF"
 import {
   Chart as ChartJS,
   CategoryScale, LinearScale, BarElement,
@@ -29,15 +28,6 @@ const PAL = [
 ]
 
 const fmt = (n) => Number(n).toLocaleString("en-PK")
-
-// ─── autoTable style preset ───────────────────────────────────────────────────
-const TBL = (fs = 9) => ({
-  theme: "grid",
-  headStyles: { fillColor: [240, 245, 250], textColor: 20, fontStyle: "bold", lineColor: [200, 200, 200], lineWidth: 0.1 },
-  footStyles: { fillColor: [224, 236, 255], textColor: 20, fontStyle: "bold", lineColor: [200, 200, 200], lineWidth: 0.1 },
-  bodyStyles: { lineColor: [200, 200, 200], lineWidth: 0.1 },
-  styles:     { fontSize: fs, cellPadding: 3, textColor: 40 },
-})
 
 // ─── Page ─────────────────────────────────────────────────────────────────────
 export default function FeeAnalyticsPage() {
@@ -137,82 +127,15 @@ export default function FeeAnalyticsPage() {
   }), [classStats])
 
   // ── PDF ──────────────────────────────────────────────────────────────────
-  const exportPDF = () => {
+  const exportPDF = async () => {
     if (!feeSlabs.length) return toast({ title: "No fee data to export", variant: "destructive" })
-    const doc = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" })
-    const W = doc.internal.pageSize.width
-    let y = 14
-
-    const newSection = (title) => {
-      if (y > doc.internal.pageSize.height - 44) { doc.addPage(); y = 14 }
-      doc.setFontSize(10).setFont("helvetica", "bold").setTextColor(30).text(title, 14, y); y += 5
+    try {
+      await exportFeeAnalyticsPDF({ students, withFee, noFee, avgFee, totalRev, minFee, maxFee, feeSlabs, classStats })
+      toast({ title: "PDF exported" })
+    } catch (error) {
+      console.error('Fee report export failed:', error)
+      toast({ title: "Could not export PDF", description: error.message, variant: "destructive" })
     }
-
-    // Title
-    doc.setFontSize(18).setFont("helvetica", "bold").setTextColor(20).text("Fee Analytics Report", W / 2, y, { align: "center" }); y += 7
-    doc.setFontSize(8).setFont("helvetica", "normal").setTextColor(110)
-    doc.text(`Generated: ${new Date().toLocaleDateString("en-PK")}   ·   Total Active Students: ${students.length}`, W / 2, y, { align: "center" }); y += 10
-
-    // Summary
-    newSection("Overall Summary")
-    autoTable(doc, {
-      startY: y,
-      head: [["Metric", "Value"]],
-      body: [
-        ["Total Active Students",     students.length],
-        ["Students with Fee Data",    withFee.length],
-        ["Students without Fee Data", noFee.length],
-        ["Average Monthly Fee",       `Rs. ${fmt(avgFee)}`],
-        ["Total Monthly Revenue",     `Rs. ${fmt(totalRev)}`],
-        ["Lowest Fee Tier",           `Rs. ${fmt(minFee)}`],
-        ["Highest Fee Tier",          `Rs. ${fmt(maxFee)}`],
-        ["Unique Fee Tiers",          feeSlabs.length],
-      ],
-      ...TBL(), columnStyles: { 0: { fontStyle: "bold", cellWidth: 80 } },
-    }); y = doc.lastAutoTable.finalY + 10
-
-    // Fee slab distribution
-    newSection("Fee Slab Distribution")
-    autoTable(doc, {
-      startY: y,
-      head: [["Monthly Fee (Rs.)", "No. of Students", "% of Total", "Monthly Revenue (Rs.)"]],
-      body: feeSlabs.map(g => [fmt(g.fee), g.count, `${((g.count / students.length) * 100).toFixed(1)}%`, fmt(g.revenue)]),
-      foot: [["TOTAL", withFee.length, "100%", fmt(totalRev)]],
-      ...TBL(),
-    }); y = doc.lastAutoTable.finalY + 10
-
-    // Class-wise summary
-    if (classStats.length) {
-      newSection("Class-wise Fee Summary")
-      autoTable(doc, {
-        startY: y,
-        head: [["Class", "Students", "Avg Fee (Rs.)", "Monthly Revenue (Rs.)"]],
-        body: classStats.map(c => [c.name, c.count, fmt(c.avg), fmt(c.revenue)]),
-        ...TBL(),
-      }); y = doc.lastAutoTable.finalY + 10
-
-      newSection("Fee Slabs per Class")
-      classStats.forEach(cls => {
-        if (y > doc.internal.pageSize.height - 44) { doc.addPage(); y = 14 }
-        doc.setFontSize(9).setFont("helvetica", "bold").setTextColor(50)
-        doc.text(`${cls.name}  (${cls.count} students · avg Rs. ${fmt(cls.avg)}/mo)`, 14, y); y += 5
-        autoTable(doc, {
-          startY: y,
-          head: [["Fee Tier", "Students", "% of Class", "Revenue (Rs.)"]],
-          body: Object.entries(cls.slabs)
-            .sort(([a], [b]) => Number(a) - Number(b))
-            .map(([fee, cnt]) => [
-              `Rs. ${fmt(Number(fee))}`, cnt,
-              `${((cnt / cls.count) * 100).toFixed(1)}%`,
-              fmt(Number(fee) * cnt),
-            ]),
-          ...TBL(8), margin: { left: 20, right: 14 },
-        }); y = doc.lastAutoTable.finalY + 7
-      })
-    }
-
-    doc.save(`Fee_Analytics_${new Date().toISOString().split("T")[0]}.pdf`)
-    toast({ title: "PDF exported! 📄" })
   }
 
   // ── shared chart options ──────────────────────────────────────────────────

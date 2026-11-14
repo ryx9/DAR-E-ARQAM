@@ -29,6 +29,21 @@ const AVAILABLE_COLUMNS = [
   { key: "Clear", label: "Clear Status" },
 ]
 
+const formatReportValue = (student, key) => {
+  const value = student[key]
+  if (value == null || value === '') return '-'
+  if (key === 'dob' || key === 'joining_date') {
+    const datePart = String(value).slice(0, 10)
+    const parsed = new Date(`${datePart}T12:00:00`)
+    if (!Number.isNaN(parsed.getTime())) {
+      const day = String(parsed.getDate()).padStart(2, '0')
+      const month = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'][parsed.getMonth()]
+      return `${day}-${month}-${parsed.getFullYear()}`
+    }
+  }
+  return String(value)
+}
+
 export default function ReportGeneratorPage() {
   const { toast } = useToast()
 
@@ -127,7 +142,7 @@ export default function ReportGeneratorPage() {
     toast({ title: "CSV Exported Successfully! 📊" })
   }
 
-  const exportPDF = () => {
+  const exportPDF = async () => {
     if (filteredStudents.length === 0) {
       return toast({ title: "No data to export", variant: "destructive" })
     }
@@ -138,79 +153,96 @@ export default function ReportGeneratorPage() {
       ? classes.filter(c => filteredStudents.some(s => s.class_id === c.id))
       : classes.filter(c => c.id.toString() === selectedClassId)
 
-    let isFirstPage = true
-
-    targetClasses.forEach((cls) => {
-      const classStudents = filteredStudents.filter(s => s.class_id === cls.id)
-      if (classStudents.length === 0) return
-
-      if (!isFirstPage) doc.addPage()
-      isFirstPage = false
-
-      let currentY = 15
-
-      if (isAwardSheet) {
-        doc.setFontSize(16)
-        doc.setFont("helvetica", "bold")
-        doc.setTextColor(20)
-        doc.text("AWARD SHEET", doc.internal.pageSize.width / 2, currentY, { align: "center" })
-        currentY += 8
-      }
-
-      doc.setFontSize(11)
-      doc.setFont("helvetica", "bold")
-      doc.setTextColor(60)
-      doc.text(`Class: ${cls.name}`, 14, currentY)
-      doc.setFont("helvetica", "normal")
-      doc.setFontSize(9)
-      doc.text(`Total Students: ${classStudents.length}`, doc.internal.pageSize.width - 14, currentY, { align: "right" })
-      currentY += 6
-
-      let head = []
-      let body = []
-      let columnStyles = {}
-
-      if (isAwardSheet) {
-        head = [["Sr#", "ID", "Name", "Father Name", "      ", "      ", "      ", "      ", "      ", "      "]]
-        body = classStudents.map((s, idx) => [
-          idx + 1,
-          s.studentid || "-",
-          s.name || "-",
-          s.fathername || "-",
-          "", "", "", "", "", ""
-        ])
-        const emptyColIndices = [4, 5, 6, 7, 8, 9]
-        emptyColIndices.forEach(colIdx => {
-          columnStyles[colIdx] = { minCellWidth: 15, halign: 'center' }
+    {
+      let logo = null
+      try {
+        const response = await fetch('/logo-1.png')
+        if (!response.ok) throw new Error('Logo unavailable')
+        const blob = await response.blob()
+        logo = await new Promise((resolve, reject) => {
+          const reader = new FileReader()
+          reader.onload = () => resolve(reader.result)
+          reader.onerror = reject
+          reader.readAsDataURL(blob)
         })
-        columnStyles[0] = { minCellWidth: 8, halign: 'center' }
-      } else {
-        head = [["Sr#", ...activeColumns.map(col => col.label)]]
-        body = classStudents.map((student, idx) => [
-          idx + 1,
-          // FIX: use ?? "" so numeric 0 and falsy numbers aren't replaced by "-"
-          ...activeColumns.map(col => {
-            const val = student[col.key]
-            return val != null && val !== "" ? String(val) : "-"
-          })
-        ])
-        columnStyles[0] = { minCellWidth: 8, halign: 'center' }
+      } catch (error) {
+        console.warn('Award sheet logo unavailable:', error)
       }
 
-      autoTable(doc, {
-        startY: currentY,
-        head: head,
-        body: body,
-        theme: 'grid',
-        headStyles: { fillColor: [240, 245, 250], textColor: 20, fontStyle: 'bold', lineColor: [200, 200, 200], lineWidth: 0.1 },
-        bodyStyles: { lineColor: [200, 200, 200], lineWidth: 0.1 },
-        styles: { fontSize: 9, cellPadding: 3, textColor: 40 },
-        columnStyles: columnStyles,
-      })
-    })
+      const pageWidth = doc.internal.pageSize.getWidth()
+      const pageHeight = doc.internal.pageSize.getHeight()
+      const generated = new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })
+      let firstClass = true
 
-    doc.save(`${isAwardSheet ? 'Award_Sheet' : 'Class_Report'}_${new Date().toISOString().split('T')[0]}.pdf`)
-    toast({ title: "PDF Generated Successfully! 📄" })
+      targetClasses.forEach(cls => {
+        const classStudents = filteredStudents.filter(s => s.class_id === cls.id)
+        if (!classStudents.length) return
+        if (!firstClass) doc.addPage()
+        firstClass = false
+
+        const drawHeader = () => {
+          doc.setFillColor(40, 38, 80)
+          doc.rect(0, 0, pageWidth, 2.5, 'F')
+          if (logo) doc.addImage(logo, 'PNG', 14, 8, 53, 18)
+          else {
+            doc.setFont('helvetica', 'bold')
+            doc.setFontSize(12)
+            doc.setTextColor(40, 38, 80)
+            doc.text('DAR-E-ARQAM SCHOOL', 14, 17)
+          }
+          doc.setFont('helvetica', 'bold')
+          doc.setFontSize(15)
+          doc.setTextColor(30, 41, 59)
+          doc.text(isAwardSheet ? 'AWARD SHEET' : 'STUDENT REPORT', pageWidth - 14, 15, { align: 'right' })
+          doc.setFont('helvetica', 'normal')
+          doc.setFontSize(8)
+          doc.setTextColor(100, 116, 139)
+          doc.text(isAwardSheet ? 'ACADEMIC RECORD' : 'STUDENT RECORDS', pageWidth - 14, 21, { align: 'right' })
+          doc.setDrawColor(203, 213, 225)
+          doc.line(14, 29, pageWidth - 14, 29)
+          doc.setTextColor(30, 41, 59)
+          doc.setFont('helvetica', 'bold')
+          doc.setFontSize(9)
+          doc.text(`Class: ${cls.name}`, 14, 36)
+          doc.text(`Students: ${classStudents.length}`, pageWidth - 14, 36, { align: 'right' })
+          doc.setFont('helvetica', 'normal')
+          doc.setFontSize(8)
+          if (isAwardSheet) {
+            doc.text('Examination: __________________________', 14, 43)
+            doc.text('Session: __________________', 112, 43)
+            doc.text('Subject: _______________________________', 14, 50)
+            doc.text('Date: _____________________', 112, 50)
+          }
+        }
+
+        autoTable(doc, {
+          startY: isAwardSheet ? 55 : 43,
+          margin: { top: isAwardSheet ? 55 : 43, right: 14, bottom: 24, left: 14 },
+          head: isAwardSheet ? [['No.', 'Student ID', 'Student name', 'Father / guardian', '', '', '', '', '', '']] : [['No.', ...activeColumns.map(col => col.label)]],
+          body: isAwardSheet ? classStudents.map((student, index) => [index + 1, student.studentid ?? '-', student.name || '-', student.fathername || '-', '', '', '', '', '', '']) : classStudents.map((student, index) => [index + 1, ...activeColumns.map(col => formatReportValue(student, col.key))]),
+          theme: 'grid',
+          showHead: 'everyPage',
+          rowPageBreak: 'avoid',
+          styles: { font: 'helvetica', fontSize: 8, textColor: [30, 41, 59], lineColor: [190, 198, 210], lineWidth: 0.18, cellPadding: 2, minCellHeight: 9, valign: 'middle', overflow: 'linebreak' },
+          headStyles: { fillColor: [235, 238, 244], textColor: [30, 41, 59], fontStyle: 'bold', minCellHeight: 12, valign: 'middle' },
+          columnStyles: isAwardSheet ? { 0: { cellWidth: 9, halign: 'center' }, 1: { cellWidth: 19 }, 2: { cellWidth: 33 }, 3: { cellWidth: 31 }, 4: { cellWidth: 15 }, 5: { cellWidth: 15 }, 6: { cellWidth: 15 }, 7: { cellWidth: 15 }, 8: { cellWidth: 15 }, 9: { cellWidth: 15 } } : { 0: { cellWidth: 10, halign: 'center' } },
+          didDrawPage: () => {
+            drawHeader()
+            doc.setDrawColor(203, 213, 225)
+            doc.line(14, pageHeight - 16, pageWidth - 14, pageHeight - 16)
+            doc.setFont('helvetica', 'normal')
+            doc.setFontSize(7)
+            doc.setTextColor(100, 116, 139)
+            doc.text(`Generated ${generated}  |  Class: ${cls.name}`, 14, pageHeight - 11)
+            doc.text(`Page ${doc.internal.getCurrentPageInfo().pageNumber}`, pageWidth - 14, pageHeight - 11, { align: 'right' })
+          },
+        })
+      })
+      doc.save(`${isAwardSheet ? 'Award_Sheet' : 'Class_Report'}_${new Date().toISOString().split('T')[0]}.pdf`)
+      toast({ title: 'PDF downloaded' })
+      return
+    }
+
   }
 
   const totalStudentCount = filteredStudents.length

@@ -1,5 +1,6 @@
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
+import { drawSchoolHeader, loadSchoolLogo } from './pdfBranding';
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
@@ -12,15 +13,18 @@ const today = () => new Date().toLocaleDateString("en-PK").replace(/\//g, "-");
 const groupByClass = (students) => {
   const map = {};
   for (const s of students) {
-    const key = s.className || "Unknown";
-    if (!map[key]) map[key] = { classId: s.classId ?? null, students: [] };
+    const classId = s.class_id ?? s.classId ?? null;
+    const key = classId != null ? `id:${classId}` : `name:${s.className || "Unknown"}`;
+    if (!map[key]) map[key] = { classId, className: s.className || "Unknown", students: [] };
     map[key].students.push(s);
   }
-  return Object.entries(map).sort(([nA, dA], [nB, dB]) => {
+  return Object.values(map).sort((dA, dB) => {
     if (dA.classId !== null && dB.classId !== null)
-      return Number(dA.classId) - Number(dB.classId);
-    return nA.localeCompare(nB, undefined, { numeric: true, sensitivity: "base" });
-  });
+      return String(dA.classId).localeCompare(String(dB.classId), undefined, { numeric: true });
+    if (dA.classId !== null) return -1;
+    if (dB.classId !== null) return 1;
+    return dA.className.localeCompare(dB.className, undefined, { numeric: true, sensitivity: "base" });
+  }).map(group => [group.className, group]);
 };
 
 // ─── Aggregate totals ────────────────────────────────────────────────────────
@@ -38,9 +42,9 @@ const totals = (list) => ({
 // ─── Shared cell styles ──────────────────────────────────────────────────────
 
 const S = {
-  classHead: { fillColor: [30, 30, 30],    textColor: [255, 255, 255], fontStyle: "bold", fontSize: 8 },
+  classHead: { fillColor: [40, 38, 80],    textColor: [255, 255, 255], fontStyle: "bold", fontSize: 8 },
   subtotal:  { fillColor: [240, 240, 240],  textColor: [0, 0, 0],       fontStyle: "bold" },
-  grandTotal:{ fillColor: [20, 20, 20],     textColor: [255, 255, 255], fontStyle: "bold" },
+  grandTotal:{ fillColor: [40, 38, 80],     textColor: [255, 255, 255], fontStyle: "bold" },
   accent:    { fillColor: [220, 220, 220],  textColor: [0, 0, 0],       fontStyle: "bold" },
 };
 
@@ -88,6 +92,7 @@ export const exportToPDF = async (defaulters, startDate, endDate) => {
   const gt      = totals(defaulters);
   const DATE    = today();
   const TOT_PG  = "{total_pages_count_string}";
+  const logo = await loadSchoolLogo();
 
   drawPageHeader(doc, startDate, endDate);
 
@@ -166,8 +171,8 @@ export const exportToPDF = async (defaulters, startDate, endDate) => {
     startY: 26,
     theme: "grid",
     headStyles: {
-      fillColor: [50, 50, 50],
-      textColor: [255, 255, 255],
+      fillColor: [235, 238, 244],
+      textColor: [30, 41, 59],
       fontSize: 8,
       fontStyle: "bold",
       lineColor: [0, 0, 0],
@@ -289,7 +294,7 @@ export const exportToPDF = async (defaulters, startDate, endDate) => {
     body: breakdownRows,
     startY: section1Y + 3,
     theme: "grid",
-    headStyles: { fillColor: [50, 50, 50], textColor: [255, 255, 255], fontSize: 8, fontStyle: "bold" },
+    headStyles: { fillColor: [235, 238, 244], textColor: [30, 41, 59], fontSize: 8, fontStyle: "bold" },
     styles: { fontSize: 8, cellPadding: 2, textColor: [20, 20, 20] },
     margin: { left: 14, right: 14 },
     tableWidth: 130,
@@ -332,7 +337,7 @@ export const exportToPDF = async (defaulters, startDate, endDate) => {
     body: riskRows,
     startY: section2Y + 3,
     theme: "grid",
-    headStyles: { fillColor: [50, 50, 50], textColor: [255, 255, 255], fontSize: 8, fontStyle: "bold" },
+    headStyles: { fillColor: [235, 238, 244], textColor: [30, 41, 59], fontSize: 8, fontStyle: "bold" },
     styles: { fontSize: 8, cellPadding: 2, textColor: [20, 20, 20] },
     margin: { left: 14, right: 14 },
   });
@@ -407,6 +412,13 @@ export const exportToPDF = async (defaulters, startDate, endDate) => {
   // ── Finalize ──────────────────────────────────────────────────────────────
 
   if (typeof doc.putTotalPages === "function") doc.putTotalPages(TOT_PG);
+  const pageCount = doc.internal.getNumberOfPages();
+  for (let page = 1; page <= pageCount; page++) {
+    doc.setPage(page);
+    drawSchoolHeader(doc, { logo, title: 'DEFAULTER REPORT', subtitle: `Period: ${startDate || '-'} to ${endDate || '-'}` });
+    doc.setFont('helvetica', 'normal'); doc.setFontSize(7); doc.setTextColor(100, 116, 139);
+    doc.text(`Page ${page} of ${pageCount}`, 283, 202, { align: 'right' });
+  }
   doc.save(`Defaulter_Report_${DATE}.pdf`);
   return true;
 };
