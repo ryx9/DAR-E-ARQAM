@@ -1,8 +1,8 @@
-
 'use client';
 
 import React, { useEffect, useState } from 'react';
 import Link from 'next/link';
+import { usePathname } from 'next/navigation';
 import {
   Moon,
   Sun,
@@ -22,25 +22,51 @@ import {
   ChevronRight,
   Power,
   Zap,
-  BarChart2
+  BarChart2,
 } from 'lucide-react';
+import type { LucideIcon } from 'lucide-react';
 import { supabase } from '../utils/supabaseClient';
+
+/* ==========================================================================
+   Design notes
+   - Uses the tokens from globals.css (--brand, --brand-deep, --card, --border,
+     --muted ...), so the navbar follows the school colour and dark mode.
+   - The header is a floating jelly-glass pill (.navbar-float / .navbar-glass
+     in globals.css). Buttons use .jelly / .jelly-soft for the springy press.
+   - The desktop quick links show from the lg breakpoint (1024px) up, as in the
+     original navbar. Between lg and xl the pill is slightly more compact.
+   - Each app has a single `hue`; the icon chip colours are derived from it
+     (soft in light mode, glowing in dark mode), so the set looks cohesive.
+   - The one bold element in the menu is the AI notice banner.
+   ========================================================================== */
 
 // ----- Types & Hooks -----
 type Theme = 'light' | 'dark';
 
+/* Module-level memory.
+   If every page renders its own <Navbar />, the navbar is re-created on each
+   page change. These values live outside React, so they survive client-side
+   navigation: the entrance animation plays once, and the auth / theme state
+   starts from what was already known instead of popping in again. A full page
+   reload resets them, which is the right moment to play the intro again. */
+let introPlayed = false;
+let authCache: { isLoggedIn: boolean; userRole: string | null } | null = null;
+let themeCache: Theme | null = null;
+
 const useTheme = () => {
-  const [theme, setThemeState] = useState<Theme>('light');
-  const [mounted, setMounted] = useState(false);
+  const [theme, setThemeState] = useState<Theme>(themeCache ?? 'light');
+  const [mounted, setMounted] = useState(themeCache !== null);
 
   useEffect(() => {
-    setMounted(true);
     const stored = (localStorage.getItem('theme') as Theme) || 'light';
+    themeCache = stored;
     setThemeState(stored);
+    setMounted(true);
     document.documentElement.classList.toggle('dark', stored === 'dark');
   }, []);
 
   const setTheme = (t: Theme) => {
+    themeCache = t;
     localStorage.setItem('theme', t);
     setThemeState(t);
     document.documentElement.classList.toggle('dark', t === 'dark');
@@ -54,90 +80,29 @@ const useRouter = () => {
 };
 
 // ----- Config -----
-const NAV_LINKS = [
-  {
-    href: '/dashboard',
-    label: 'Dashboard',
-    icon: LayoutGrid,
-    color: 'text-blue-600 dark:text-blue-400',
-    bg: 'bg-blue-50 dark:bg-blue-900/20',
-    border: 'group-hover:border-blue-200 dark:group-hover:border-blue-800',
-  },
-  {
-    href: '/reports',
-    label: 'Reports',
-    icon: BarChart2,
-    color: 'text-indigo-600 dark:text-indigo-400',
-    bg: 'bg-indigo-50 dark:bg-indigo-900/20',
-    border: 'group-hover:border-indigo-200 dark:group-hover:border-indigo-800',
-  },
-  {
-    href: '/marks',
-    label: 'Tests & Marks',
-    icon: ScrollText,
-    color: 'text-emerald-600 dark:text-emerald-400',
-    bg: 'bg-emerald-50 dark:bg-emerald-900/20',
-    border: 'group-hover:border-emerald-200 dark:group-hover:border-emerald-800',
-  },
-  {
-    href: '/attendance-record/report',
-    label: 'Attendance',
-    icon: UserCheck,
-    color: 'text-teal-600 dark:text-teal-400',
-    bg: 'bg-teal-50 dark:bg-teal-900/20',
-    border: 'group-hover:border-teal-200 dark:group-hover:border-teal-800',
-  },
-  {
-    href: '/syllabus',
-    label: 'Syllabus',
-    icon: BookOpenCheck,
-    color: 'text-violet-600 dark:text-violet-400',
-    bg: 'bg-violet-50 dark:bg-violet-900/20',
-    border: 'group-hover:border-violet-200 dark:group-hover:border-violet-800',
-  },
-  {
-    href: '/diary',
-    label: 'Diary',
-    icon: NotebookPen,
-    color: 'text-pink-600 dark:text-pink-400',
-    bg: 'bg-pink-50 dark:bg-pink-900/20',
-    border: 'group-hover:border-pink-200 dark:group-hover:border-pink-800',
-  },
-  {
-    href: '/activities',
-    label: 'Activities',
-    icon: Sparkles,
-    color: 'text-fuchsia-600 dark:text-fuchsia-400',
-    bg: 'bg-fuchsia-50 dark:bg-fuchsia-900/20',
-    border: 'group-hover:border-fuchsia-200 dark:group-hover:border-fuchsia-800',
-  },
-  {
-    href: '/advance',
-    label: 'Advance',
-    icon: Wallet,
-    color: 'text-green-600 dark:text-green-400',
-    bg: 'bg-green-50 dark:bg-green-900/20',
-    border: 'group-hover:border-green-200 dark:group-hover:border-green-800',
-  },
-  {
-    href: '/mycomplaint',
-    label: 'Complaints',
-    icon: ShieldAlert,
-    color: 'text-rose-600 dark:text-rose-400',
-    bg: 'bg-rose-50 dark:bg-rose-900/20',
-    border: 'group-hover:border-rose-200 dark:group-hover:border-rose-800',
-  },
+type NavItem = { href: string; label: string; icon: LucideIcon; hue: number };
+
+const NAV_LINKS: NavItem[] = [
+  { href: '/dashboard', label: 'Dashboard', icon: LayoutGrid, hue: 217 },
+  { href: '/reports', label: 'Reports', icon: BarChart2, hue: 239 },
+  { href: '/marks', label: 'Tests & Marks', icon: ScrollText, hue: 160 },
+  { href: '/attendance-record/report', label: 'Attendance', icon: UserCheck, hue: 173 },
+  { href: '/syllabus', label: 'Syllabus', icon: BookOpenCheck, hue: 262 },
+  { href: '/diary', label: 'Diary', icon: NotebookPen, hue: 330 },
+  { href: '/activities', label: 'Activities', icon: Sparkles, hue: 292 },
+  { href: '/advance', label: 'Advance', icon: Wallet, hue: 142 },
+  { href: '/mycomplaint', label: 'Complaints', icon: ShieldAlert, hue: 347 },
 ];
 
-const ADMIN_LINKS = [
-  { href: '/admin', label: 'Admin Overview', icon: LayoutGrid, color: 'text-blue-600 dark:text-blue-400', bg: 'bg-blue-50 dark:bg-blue-900/20', border: 'group-hover:border-blue-200 dark:group-hover:border-blue-800' },
-  { href: '/admin/invoices', label: 'Invoices', icon: FileText, color: 'text-teal-600 dark:text-teal-400', bg: 'bg-teal-50 dark:bg-teal-900/20', border: 'group-hover:border-teal-200 dark:group-hover:border-teal-800' },
-  { href: '/admin/crud', label: 'Manage Students', icon: Users, color: 'text-indigo-600 dark:text-indigo-400', bg: 'bg-indigo-50 dark:bg-indigo-900/20', border: 'group-hover:border-indigo-200 dark:group-hover:border-indigo-800' },
+const ADMIN_LINKS: NavItem[] = [
+  { href: '/admin', label: 'Admin Overview', icon: LayoutGrid, hue: 217 },
+  { href: '/admin/invoices', label: 'Invoices', icon: FileText, hue: 173 },
+  { href: '/admin/crud', label: 'Manage Students', icon: Users, hue: 239 },
 ];
 
-const SUPERADMIN_LINKS = [
-  { href: '/admin/report', label: 'Fee Reports', icon: BarChart2, color: 'text-cyan-600 dark:text-cyan-400', bg: 'bg-cyan-50 dark:bg-cyan-900/20', border: 'group-hover:border-cyan-200 dark:group-hover:border-cyan-800' },
-  { href: '/admin/profiles', label: 'Manage Teachers', icon: UserCheck, color: 'text-violet-600 dark:text-violet-400', bg: 'bg-violet-50 dark:bg-violet-900/20', border: 'group-hover:border-violet-200 dark:group-hover:border-violet-800' },
+const SUPERADMIN_LINKS: NavItem[] = [
+  { href: '/admin/report', label: 'Fee Reports', icon: BarChart2, hue: 188 },
+  { href: '/admin/profiles', label: 'Manage Teachers', icon: UserCheck, hue: 262 },
 ];
 
 const DESKTOP_LINKS = [
@@ -150,15 +115,35 @@ const DESKTOP_LINKS = [
   { href: '/admin/profiles', label: 'Manage Teachers', roles: ['superadmin'] },
 ];
 
+const ROLE_LABELS: Record<string, string> = {
+  superadmin: 'Super admin',
+  admin: 'Admin',
+  teacher: 'Teacher',
+  user: 'User',
+};
+
+// Shared styles
+const BRAND_BUTTON =
+  'bg-[hsl(var(--brand))] text-white dark:text-[hsl(var(--brand-deep))] shadow-[inset_0_1px_1px_rgba(255,255,255,0.45),0_8px_16px_-8px_hsl(var(--brand)/0.7)]';
+
 // ----- Component -----
 
 const Navbar = () => {
   const { theme, setTheme, mounted } = useTheme();
   const [isOpen, setIsOpen] = useState(false);
-  const [isLoggedIn, setIsLoggedIn] = useState(false);
-  const [userRole, setUserRole] = useState<string | null>(null);
+  const [isLoggedIn, setIsLoggedIn] = useState(authCache?.isLoggedIn ?? false);
+  const [authReady, setAuthReady] = useState(authCache !== null);
+  const [userRole, setUserRole] = useState<string | null>(authCache?.userRole ?? null);
+  // true only for the very first render after a full page load
+  const [playIntro] = useState(() => !introPlayed);
   const router = useRouter();
+  const pathname = usePathname() ?? '';
 
+  useEffect(() => {
+    introPlayed = true;
+  }, []);
+
+  // ----- Auth -----
   useEffect(() => {
     let active = true;
     const loadProfile = async () => {
@@ -166,28 +151,58 @@ const Navbar = () => {
       if (!active) return;
       setIsLoggedIn(!!user);
       if (!user) {
+        authCache = { isLoggedIn: false, userRole: null };
         setUserRole(null);
+        setAuthReady(true);
         return;
       }
       const { data: profile } = await supabase.from('profiles').select('role').eq('id', user.id).single();
-      if (active) setUserRole(profile?.role?.toLowerCase() || null);
+      if (active) {
+        const role = profile?.role?.toLowerCase() || null;
+        authCache = { isLoggedIn: true, userRole: role };
+        setUserRole(role);
+        setAuthReady(true);
+      }
     };
     void loadProfile();
     const { data: { subscription } } = supabase.auth.onAuthStateChange(() => { void loadProfile(); });
     return () => { active = false; subscription.unsubscribe(); };
   }, []);
 
+  // Close the menu whenever the page changes
+  useEffect(() => {
+    setIsOpen(false);
+  }, [pathname]);
+
+  // While the menu is open: Escape closes it and the page behind does not scroll
+  useEffect(() => {
+    if (!isOpen) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setIsOpen(false);
+    };
+    window.addEventListener('keydown', onKey);
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => {
+      window.removeEventListener('keydown', onKey);
+      document.body.style.overflow = previousOverflow;
+    };
+  }, [isOpen]);
+
   const isAdmin = userRole === 'admin' || userRole === 'superadmin';
-  const visibleLinks = [
-    ...NAV_LINKS,
-    ...(isAdmin ? ADMIN_LINKS : []),
-    ...(userRole === 'superadmin' ? SUPERADMIN_LINKS : []),
-  ];
+  const adminItems = [...ADMIN_LINKS, ...(userRole === 'superadmin' ? SUPERADMIN_LINKS : [])];
+  const roleLabel = userRole ? ROLE_LABELS[userRole] ?? userRole : null;
+
+  const isActive = (href: string) => {
+    if (href === '/admin') return pathname === '/admin';
+    return pathname === href || pathname.startsWith(href + '/');
+  };
 
   const handleSignOut = async () => {
     setIsOpen(false);
     setIsLoggedIn(false);
     setUserRole(null);
+    authCache = { isLoggedIn: false, userRole: null };
     localStorage.removeItem('UserRole');
     try {
       await supabase.auth.signOut();
@@ -197,238 +212,248 @@ const Navbar = () => {
     router.push('/login');
   };
 
+  // ----- Cursor spotlight on the navbar (desktop). Drives --mx / --my in globals.css -----
+  const handleNavMouseMove = (e: React.MouseEvent<HTMLElement>) => {
+    const rect = e.currentTarget.getBoundingClientRect();
+    e.currentTarget.style.setProperty('--mx', `${e.clientX - rect.left}px`);
+    e.currentTarget.style.setProperty('--my', `${e.clientY - rect.top}px`);
+  };
+  const handleNavMouseLeave = (e: React.MouseEvent<HTMLElement>) => {
+    e.currentTarget.style.removeProperty('--mx');
+    e.currentTarget.style.removeProperty('--my');
+  };
+
+  // ----- Menu section (heading + grid of apps) -----
+  const renderSection = (title: string, items: NavItem[]) => (
+    <section className="mb-5 last:mb-0">
+      <h3 className="mb-2 px-1 text-xs font-semibold text-muted-foreground">{title}</h3>
+      <div className="grid grid-cols-2 gap-1.5 md:grid-cols-3">
+        {items.map((item) => {
+          const Icon = item.icon;
+          const active = isActive(item.href);
+          return (
+            <Link
+              key={item.href}
+              href={item.href}
+              onClick={() => setIsOpen(false)}
+              aria-current={active ? 'page' : undefined}
+              style={{ '--h': item.hue } as React.CSSProperties}
+              className={`jelly-soft group flex items-center gap-3 rounded-2xl px-2.5 py-2 ${active
+                ? 'bg-[hsl(var(--brand)/0.09)] ring-1 ring-inset ring-[hsl(var(--brand)/0.28)]'
+                : 'hover:bg-muted'
+                }`}
+            >
+              <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[hsl(var(--h)_80%_94%)] text-[hsl(var(--h)_62%_38%)] shadow-[inset_0_1px_1px_rgba(255,255,255,0.8)] dark:bg-[hsl(var(--h)_60%_55%/0.16)] dark:text-[hsl(var(--h)_85%_75%)] dark:shadow-none">
+                <Icon size={18} strokeWidth={2} />
+              </span>
+              <span className="truncate text-[13.5px] font-medium text-foreground">{item.label}</span>
+            </Link>
+          );
+        })}
+      </div>
+    </section>
+  );
+
   return (
     <>
-      {/* FIXED HEADER */}
-      <nav
-        className="navbar-glass fixed top-0 left-0 right-0 z-[100] h-20 transition-all"
-      >
-        <div className="container mx-auto px-4 h-full flex justify-between items-center">
-          {/* Logo Area */}
-          <Link href="/" className="flex items-center gap-3 group relative select-none">
-            {/* Logo Icon */}
-            <div className="relative bg-gradient-to-br from-indigo-600 to-violet-700 text-white w-10 h-10 rounded-xl flex items-center justify-center shadow-lg shadow-indigo-500/20 group-hover:scale-105 transition-transform duration-300">
-              <span className="font-black text-xl">D</span>
-            </div>
+      {/* FLOATING JELLY-GLASS PILL */}
+      <div className={`${playIntro ? 'navbar-float ' : ''}pointer-events-none fixed inset-x-0 top-3 z-[100] px-3 sm:px-5`}>
+        <nav
+          className="navbar-glass pointer-events-auto mx-auto h-16 max-w-7xl"
+          onMouseMove={handleNavMouseMove}
+          onMouseLeave={handleNavMouseLeave}
+        >
+          {/* curved specular highlight */}
+          <span
+            aria-hidden="true"
+            className="pointer-events-none absolute inset-x-6 top-[3px] h-[44%] rounded-full bg-gradient-to-b from-white/60 to-transparent dark:from-white/15"
+          />
 
-            <div className="flex flex-col relative">
-              <span className="font-extrabold text-lg leading-none tracking-tight text-gray-900 dark:text-white">
-                DAR-E-ARQAM
+          <div className="relative flex h-full items-center justify-between gap-3 px-2.5 sm:px-3">
+            {/* Logo */}
+            <Link href="/" className="group flex select-none items-center gap-3" aria-label="Dar-e-Arqam home">
+              <span
+                className="jelly flex h-11 w-11 items-center justify-center rounded-full text-lg font-extrabold text-white shadow-[0_8px_18px_-8px_hsl(var(--brand)/0.8),inset_0_2px_2px_rgba(255,255,255,0.45)] ring-1 ring-inset ring-white/30"
+                style={{ backgroundImage: 'linear-gradient(145deg, hsl(var(--brand)), hsl(var(--brand-deep)))' }}
+              >
+                D
               </span>
 
-              {/* BRANDING: VISIBLE AI LABEL */}
-              <div className="flex items-center gap-2 mt-0.5">
-                <span className="text-[10px] font-semibold text-gray-400 dark:text-gray-500">
-                  School System
+              <span className="flex flex-col">
+                <span className="text-[17px] font-extrabold leading-none tracking-tight text-foreground">
+                  DAR-E-ARQAM
                 </span>
-                {/* Prominent Badge */}
-                <div className="px-1.5 py-0.5 rounded-md bg-indigo-50 dark:bg-indigo-900/30 border border-indigo-100 dark:border-indigo-800 flex items-center gap-1">
-                  <Zap size={8} className="text-amber-500 fill-amber-500" />
-                  <span className="text-[9px] font-black tracking-wide bg-gradient-to-r from-indigo-600 to-fuchsia-600 bg-clip-text text-transparent uppercase">
-                    AI Supported
+                <span className="mt-1.5 flex items-center gap-2">
+                  <span className="hidden text-[11px] font-medium text-muted-foreground sm:inline lg:hidden xl:inline">School system</span>
+                  <span className="inline-flex items-center gap-1 rounded-full bg-white/60 px-2 py-0.5 text-[11px] font-semibold leading-none text-[hsl(var(--brand))] shadow-[inset_0_1px_0_rgba(255,255,255,0.9)] dark:bg-white/10 dark:shadow-none">
+                    <Zap size={10} className="fill-amber-500 text-amber-500" />
+                    AI supported
                   </span>
-                </div>
-              </div>
+                </span>
+              </span>
+            </Link>
+
+            {/* Quick desktop links (same breakpoint as the original navbar) */}
+            <div className="hidden min-w-0 flex-1 items-center justify-center gap-0.5 lg:flex">
+              {isLoggedIn &&
+                DESKTOP_LINKS.filter((link) => userRole && link.roles.includes(userRole)).map((link) => {
+                  const active = isActive(link.href);
+                  return (
+                    <Link
+                      key={link.href}
+                      href={link.href}
+                      aria-current={active ? 'page' : undefined}
+                      className={`jelly-soft whitespace-nowrap rounded-full px-2.5 py-2 text-[12.5px] font-medium xl:px-3.5 xl:text-[13px] ${active
+                        ? 'bg-white/70 text-[hsl(var(--brand))] shadow-[inset_0_1px_0_rgba(255,255,255,0.9),0_4px_10px_-4px_hsl(var(--brand)/0.5)] dark:bg-white/10 dark:shadow-none'
+                        : 'text-muted-foreground hover:bg-white/50 hover:text-foreground dark:hover:bg-white/10'
+                        }`}
+                    >
+                      {link.label}
+                    </Link>
+                  );
+                })}
             </div>
-          </Link>
 
-          {/* Quick Desktop Links */}
-          <div className="hidden lg:flex items-center gap-1 bg-gray-100/80 dark:bg-white/[0.06] p-1.5 rounded-full border border-gray-200/60 dark:border-white/10">
-            {isLoggedIn && DESKTOP_LINKS.filter(link => userRole && link.roles.includes(userRole)).map(link => (
-              <Link
-                key={link.href}
-                href={link.href}
-                className="px-2.5 xl:px-3.5 py-1.5 rounded-full text-xs font-semibold text-gray-700 dark:text-slate-300 hover:text-gray-900 dark:hover:text-white hover:bg-white dark:hover:bg-white/10 transition-all whitespace-nowrap"
-              >
-                {link.label}
-              </Link>
-            ))}
-          </div>
+            {/* Right actions */}
+            <div className="flex shrink-0 items-center gap-1.5 sm:gap-2">
+              {authReady && !isLoggedIn && (
+                <Link
+                  href="/login"
+                  className={`jelly hidden rounded-full px-5 py-2.5 text-[13px] font-semibold sm:inline-flex ${BRAND_BUTTON}`}
+                >
+                  Sign in
+                </Link>
+              )}
 
-          {/* Right Actions */}
-          <div className="flex items-center gap-2 md:gap-3">
-            {mounted && (
+              {mounted && (
+                <button
+                  onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
+                  className="jelly flex h-10 w-10 items-center justify-center rounded-full text-muted-foreground shadow-[inset_0_1px_0_rgba(255,255,255,0.7)] hover:bg-white/50 hover:text-foreground dark:shadow-none dark:hover:bg-white/10"
+                  aria-label={theme === 'dark' ? 'Switch to light theme' : 'Switch to dark theme'}
+                >
+                  {theme === 'dark' ? <Sun size={19} /> : <Moon size={19} />}
+                </button>
+              )}
+
               <button
-                onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
-                className="p-2.5 rounded-full text-gray-500 hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-white/10 transition-all hover:rotate-12"
-                aria-label="Toggle Theme"
+                onClick={() => setIsOpen(!isOpen)}
+                aria-expanded={isOpen}
+                aria-controls="nav-drawer"
+                aria-label={isOpen ? 'Close menu' : 'Open menu'}
+                className={`jelly flex h-11 w-11 items-center justify-center rounded-full ${isOpen
+                  ? BRAND_BUTTON
+                  : 'bg-white/60 text-foreground shadow-[inset_0_1px_1px_rgba(255,255,255,0.9),0_6px_14px_-8px_hsl(var(--brand)/0.5)] hover:bg-white/80 dark:bg-white/10 dark:shadow-none dark:hover:bg-white/15'
+                  }`}
               >
-                {theme === 'dark' ? <Sun size={20} /> : <Moon size={20} />}
+                {isOpen ? <X size={20} /> : <Menu size={20} />}
               </button>
-            )}
-
-            <button
-              onClick={() => setIsOpen(!isOpen)}
-              className={`
-                relative p-2.5 rounded-full transition-all duration-300
-                ${isOpen
-                  ? 'bg-gray-900 text-white dark:bg-white dark:text-black rotate-90 shadow-md'
-                  : 'bg-gray-100 dark:bg-white/10 text-gray-900 dark:text-white hover:bg-gray-200 dark:hover:bg-white/20'
-                }
-              `}
-              aria-label="Toggle Menu"
-            >
-              {isOpen ? <X size={22} /> : <Menu size={22} />}
-            </button>
+            </div>
           </div>
-        </div>
-      </nav>
+        </nav>
+      </div>
 
-      {/* SPACER */}
-      <div className="h-20 w-full" aria-hidden="true" />
+      {/* SPACER (pill height + its top gap + breathing room) */}
+      <div className="h-[84px] w-full" aria-hidden="true" />
 
-      {/* DRAWER / MENU */}
+      {/* DRAWER / MENU (floating rounded sheet under the pill) */}
       <div
-        className={`fixed z-[90] transition-all duration-500 cubic-bezier(0.32,0.72,0,1)
+        id="nav-drawer"
+        role="dialog"
+        aria-label="Site menu"
+        aria-hidden={!isOpen}
+        className={`fixed z-[90] flex origin-top flex-col overflow-hidden rounded-[28px] border border-white/60 bg-[hsl(var(--card)/0.9)] shadow-[0_28px_70px_-24px_hsl(var(--brand-deep)/0.5)] backdrop-blur-2xl transition-[opacity,transform,visibility] duration-700 ease-[var(--spring-soft)] dark:border-white/10
+          inset-x-3 bottom-3 top-[92px]
+          md:inset-x-auto md:bottom-auto md:right-5 md:top-[92px] md:max-h-[calc(100vh-112px)] md:w-[680px] md:origin-top-right
           ${isOpen
-            ? 'opacity-100 visible translate-y-0 scale-100'
-            : 'opacity-0 invisible -translate-y-4 scale-[0.98] pointer-events-none'
-          }
-          
-          /* Mobile: Full Screen, Top padded */
-          inset-0 top-20 bg-white/95 dark:bg-gray-950/95 backdrop-blur-3xl
-          
-          /* Desktop: Floating Panel */
-          md:inset-auto md:top-24 md:right-6 md:w-[680px] md:h-auto md:max-h-[85vh] 
-          md:rounded-[2rem] md:shadow-2xl md:shadow-black/5 dark:md:shadow-black/50
-          md:border md:border-gray-200/50 md:dark:border-white/10
-          md:bg-white/90 md:dark:bg-gray-900/90 flex flex-col overflow-hidden
-        `}
+            ? 'visible translate-y-0 scale-100 opacity-100'
+            : 'pointer-events-none invisible -translate-y-3 scale-[0.96] opacity-0'
+          }`}
       >
-        <div className="flex-1 overflow-y-auto p-6 scrollbar-thin scrollbar-thumb-gray-200 dark:scrollbar-thumb-gray-800">
-          {/* User Profile / Auth Status */}
-          <div className="flex items-center justify-between mb-6 p-1">
-            <div className="flex items-center gap-4">
-              <div className="relative group cursor-pointer">
-                <div className="w-14 h-14 rounded-full bg-gradient-to-tr from-gray-100 to-gray-200 dark:from-gray-800 dark:to-gray-700 flex items-center justify-center text-gray-500 dark:text-gray-300 border-2 border-white dark:border-gray-800 shadow-sm">
-                  <User size={28} strokeWidth={1.5} />
+        <div className="flex-1 overflow-y-auto overscroll-contain p-4 sm:p-5">
+          {/* Profile / auth */}
+          <div className="mb-4 flex items-center justify-between gap-3">
+            <div className="flex min-w-0 items-center gap-3">
+              <div className="relative shrink-0">
+                <div className="flex h-12 w-12 items-center justify-center rounded-full bg-muted text-muted-foreground ring-1 ring-border">
+                  <User size={22} strokeWidth={1.6} />
                 </div>
-                <div
-                  className={`absolute bottom-0 right-0 w-4 h-4 border-[3px] border-white dark:border-gray-900 rounded-full transition-colors duration-500 ${isLoggedIn ? 'bg-emerald-500' : 'bg-gray-300'}`}
+                <span
+                  className={`absolute bottom-0 right-0 h-3.5 w-3.5 rounded-full border-2 border-[hsl(var(--card))] transition-colors duration-500 ${isLoggedIn ? 'bg-emerald-500' : 'bg-gray-300 dark:bg-gray-600'
+                    }`}
                 />
               </div>
 
-              <div className="flex flex-col">
-                <span className="font-bold text-gray-900 dark:text-white text-base">
-                  {isLoggedIn ? 'Welcome Back' : 'Guest User'}
-                </span>
-                <div className="flex items-center gap-1.5">
-                  <span className="text-xs font-medium text-gray-500 dark:text-gray-400">
-                    {isLoggedIn ? 'CMS' : 'Please login to continue'}
-                  </span>
-                </div>
+              <div className="min-w-0">
+                <p className="truncate text-[15px] font-semibold text-foreground">
+                  {isLoggedIn ? 'Welcome back' : 'Guest user'}
+                </p>
+                <p className="truncate text-xs text-muted-foreground">
+                  {isLoggedIn ? roleLabel ?? 'CMS' : 'Sign in to continue'}
+                </p>
               </div>
             </div>
 
-            {/* Auth Action Button */}
-            {isLoggedIn ? (
-              <button
-                onClick={handleSignOut}
-                className="flex items-center gap-2 px-5 py-2.5 rounded-full bg-red-50 text-red-600 hover:bg-red-500 hover:text-white dark:bg-red-500/10 dark:text-red-400 dark:hover:bg-red-600 dark:hover:text-white transition-all duration-300 group"
-              >
-                <span className="text-xs font-bold uppercase tracking-wide">Logout</span>
-                <Power size={16} className="group-hover:text-white" />
-              </button>
-            ) : (
-              <button
-                onClick={() => router.push('/login')}
-                className="px-6 py-2.5 rounded-full bg-indigo-600 text-white text-xs font-bold hover:bg-indigo-700 shadow-lg shadow-indigo-600/20 hover:shadow-indigo-600/40 transition-all transform hover:-translate-y-0.5"
-              >
-                Sign In
-              </button>
-            )}
+            {authReady &&
+              (isLoggedIn ? (
+                <button
+                  onClick={handleSignOut}
+                  className="jelly-soft inline-flex shrink-0 items-center gap-2 rounded-full border border-red-200 px-4 py-2 text-[13px] font-semibold text-red-600 hover:bg-red-600 hover:text-white dark:border-red-500/30 dark:text-red-400 dark:hover:bg-red-600 dark:hover:text-white"
+                >
+                  Log out
+                  <Power size={15} />
+                </button>
+              ) : (
+                <button
+                  onClick={() => router.push('/login')}
+                  className={`jelly shrink-0 rounded-full px-5 py-2 text-[13px] font-semibold ${BRAND_BUTTON}`}
+                >
+                  Sign in
+                </button>
+              ))}
           </div>
 
-          {/* AI NOTICE BANNER */}
+          {/* AI notice banner: the one bold element in the menu */}
           <Link
             href="/notice"
             onClick={() => setIsOpen(false)}
-            className="mb-8 block group relative overflow-hidden rounded-2xl bg-gradient-to-r from-violet-600 to-indigo-600 p-5 text-white shadow-xl shadow-indigo-500/20 hover:shadow-indigo-500/30 transition-all duration-300 hover:scale-[1.01]"
+            className="jelly-soft group mb-6 block rounded-3xl p-4 text-white shadow-[0_14px_30px_-16px_hsl(var(--brand-deep)/0.8)]"
+            style={{
+              backgroundColor: 'hsl(var(--brand-deep))',
+              backgroundImage:
+                'radial-gradient(ellipse 80% 140% at 100% 0%, hsl(var(--brand) / 0.55), transparent 65%), radial-gradient(ellipse 60% 120% at 0% 100%, hsl(268 85% 60% / 0.35), transparent 65%)',
+            }}
           >
-            <div className="absolute top-0 right-0 -mr-8 -mt-8 w-32 h-32 rounded-full bg-white/10 blur-2xl" />
-            <div className="absolute bottom-0 left-0 -ml-8 -mb-8 w-24 h-24 rounded-full bg-fuchsia-500/20 blur-2xl" />
-
-            <div className="relative flex items-center justify-between">
-              <div className="flex items-center gap-4">
-                <div className="w-12 h-12 rounded-xl bg-white/20 backdrop-blur-sm border border-white/10 flex items-center justify-center shadow-inner">
-                  <Sparkles size={24} className="text-white fill-white/20" />
-                </div>
-                <div>
-                  <div className="flex items-center gap-2 mb-0.5">
-                    <h4 className="font-bold text-lg leading-none">Send Notice To Students</h4>
-                    <span className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-white/20 border border-white/10 text-white/90">
-                      AI
-                    </span>
+            <div className="flex items-center justify-between gap-4">
+              <div className="flex min-w-0 items-center gap-3.5">
+                <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-white/15 ring-1 ring-inset ring-white/20">
+                  <Sparkles size={22} />
+                </span>
+                <div className="min-w-0">
+                  <div className="flex items-center gap-2">
+                    <h4 className="truncate text-[15px] font-bold leading-tight">Send notice to students</h4>
+                    <span className="rounded-full bg-white/20 px-2 py-0.5 text-[10px] font-bold leading-none">AI</span>
                   </div>
-                  <p className="text-indigo-100 text-xs font-medium">
-                    Send AI powered personalized messages.
-                  </p>
+                  <p className="mt-1 text-xs text-white/80">Send AI-powered personalized messages.</p>
                 </div>
               </div>
-              <div className="w-8 h-8 rounded-full bg-white/10 flex items-center justify-center group-hover:bg-white/30 transition-colors">
-                <ChevronRight size={18} />
-              </div>
+              <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-white/15 transition-colors group-hover:bg-white/30">
+                <ChevronRight size={17} />
+              </span>
             </div>
           </Link>
 
-          {/* Navigation Grid */}
-          <div className="space-y-4">
-            <div className="flex items-center justify-between px-1">
-              <h3 className="text-xs font-bold text-gray-400 uppercase tracking-widest">
-                Academic & Utilities
-              </h3>
-              <span className="text-[10px] font-semibold text-gray-500 dark:text-gray-400 bg-gray-100 dark:bg-white/5 px-2.5 py-1 rounded-full border border-gray-200 dark:border-white/5">
-                {visibleLinks.length} Apps
-              </span>
-            </div>
-
-            <div className="grid grid-cols-2 md:grid-cols-3 gap-3 md:gap-4">
-              {visibleLinks.map(link => {
-                const Icon = link.icon;
-                return (
-                  <Link
-                    key={link.href}
-                    href={link.href}
-                    onClick={() => setIsOpen(false)}
-                    className={`
-                       group relative flex flex-col items-center p-5 rounded-2xl 
-                       bg-gray-50/80 dark:bg-gray-800/40 
-                       border border-transparent ${link.border}
-                       hover:bg-white dark:hover:bg-gray-800
-                       hover:shadow-xl hover:shadow-gray-200/40 dark:hover:shadow-black/40
-                       transition-all duration-300 ease-out hover:-translate-y-1
-                     `}
-                  >
-                    <div
-                      className={`
-                       w-12 h-12 rounded-2xl mb-3 flex items-center justify-center 
-                       ${link.bg} ${link.color}
-                       transition-transform duration-300 group-hover:scale-110 group-hover:rotate-3 shadow-sm
-                     `}
-                    >
-                      <Icon size={24} strokeWidth={2} />
-                    </div>
-
-                    <span className="text-sm font-semibold text-gray-600 dark:text-gray-300 group-hover:text-gray-900 dark:group-hover:text-white transition-colors">
-                      {link.label}
-                    </span>
-
-                    <div className="absolute top-3 right-3 opacity-0 -translate-x-2 group-hover:opacity-100 group-hover:translate-x-0 transition-all duration-300">
-                      <ChevronRight size={14} className="text-gray-300 dark:text-gray-600" />
-                    </div>
-                  </Link>
-                );
-              })}
-            </div>
-          </div>
+          {/* Navigation */}
+          {renderSection('Academic and utilities', NAV_LINKS)}
+          {isAdmin && renderSection('Administration', adminItems)}
         </div>
       </div>
 
-      {/* Click Outside Overlay (PC) */}
+      {/* Click-outside overlay */}
       {isOpen && (
         <div
-          className="hidden md:block fixed inset-0 z-[80] cursor-default bg-black/5 dark:bg-black/60 backdrop-blur-sm transition-all duration-500"
+          className="fixed inset-0 z-[80] cursor-default bg-slate-900/20 backdrop-blur-[3px] dark:bg-black/55"
           onClick={() => setIsOpen(false)}
+          aria-hidden="true"
         />
       )}
     </>

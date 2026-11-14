@@ -2,16 +2,28 @@
 @tailwind components;
 @tailwind utilities;
 
+/* ==========================================================================
+   SCHOOL CMS — GLOBAL STYLES
+   --------------------------------------------------------------------------
+   Design idea: "royal glass". A deep, saturated royal gradient (school colour
+   into violet) fills the page with no texture or dots. Cards are the only
+   opaque surfaces, so data always sits on a clean background. The navbar is a
+   floating jelly-glass pill that sits above the gradient.
+
+   To rebrand for a school, change --brand (and --brand-deep) only.
+   Format is an HSL triplet WITHOUT hsl(), e.g.  221 83% 53%
+   Per-school override example:
+     <html data-school="oak-ridge">
+     [data-school="oak-ridge"] { --brand: 152 60% 36%; --brand-deep: 152 55% 14%; }
+   ========================================================================== */
+
 @layer base {
   :root {
+    color-scheme: light;
+
+    /* ---- shadcn tokens ---- */
     --background: 0 0% 100%;
     --foreground: 222.2 84% 4.9%;
-    --page-surface-color: #edf3fb;
-    --page-surface-image:
-      radial-gradient(ellipse 68% 78% at 4% 0%, rgba(37, 99, 235, 0.15), transparent 72%),
-      radial-gradient(ellipse 56% 68% at 100% 12%, rgba(29, 78, 216, 0.12), transparent 72%),
-      radial-gradient(ellipse 52% 58% at 78% 100%, rgba(59, 130, 246, 0.1), transparent 74%),
-      linear-gradient(122deg, #f8faff 0%, #eaf1fa 48%, #f2f6fc 100%);
     --card: 0 0% 100%;
     --card-foreground: 222.2 84% 4.9%;
     --popover: 0 0% 100%;
@@ -28,36 +40,70 @@
     --destructive-foreground: 210 40% 98%;
     --border: 214.3 31.8% 91.4%;
     --input: 214.3 31.8% 91.4%;
-    --ring: 222.2 84% 4.9%;
+    --ring: var(--brand);
     --radius: 0.5rem;
+
+    /* ---- school identity (change these per school) ---- */
+    --brand: 221 83% 53%;
+    --brand-deep: 222 62% 16%;
+
+    /* ---- page surface: royal gradient (no dots) ---- */
+    --page-surface-color: #eceefc;
+    --page-surface-image:
+      radial-gradient(ellipse 75% 55% at 0% 0%, hsl(var(--brand) / 0.34), transparent 70%),
+      radial-gradient(ellipse 65% 55% at 100% 0%, hsl(268 85% 62% / 0.26), transparent 70%),
+      radial-gradient(ellipse 80% 60% at 50% 112%, hsl(var(--brand-deep) / 0.16), transparent 70%),
+      linear-gradient(160deg, #e3e8fd 0%, #ebe8fb 48%, #f3f1fc 100%);
+    --page-surface-size: 100% 100%;
+    --page-surface-repeat: no-repeat;
+
+    /* ---- spring easings (smooth jelly) ----
+       Fallback is a single soft overshoot; browsers with linear() get a real
+       damped spring that settles without jitter. */
+    --spring: cubic-bezier(0.34, 1.35, 0.64, 1);
+    --spring-soft: cubic-bezier(0.34, 1.2, 0.64, 1);
+    /* fine monochrome film grain, used inside the navbar glass */
+    --navbar-grain: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='.05'/%3E%3C/svg%3E");
+    --card-shadow:
+      0 1px 2px hsl(var(--brand-deep) / 0.06),
+      0 10px 28px -14px hsl(var(--brand-deep) / 0.16);
   }
 
   .dark {
+    color-scheme: dark;
+
     --background: 0 0% 0%;
     --foreground: 0 0% 98%;
-    --page-surface-color: #030813;
-    --page-surface-image:
-      radial-gradient(ellipse 76% 74% at 0% 0%, rgba(37, 99, 235, 0.34), transparent 70%),
-      radial-gradient(ellipse 62% 70% at 100% 8%, rgba(29, 78, 216, 0.3), transparent 72%),
-      radial-gradient(ellipse 64% 58% at 78% 108%, rgba(30, 64, 175, 0.24), transparent 72%),
-      linear-gradient(128deg, #030813 0%, #07152c 34%, #0a1e3d 66%, #071329 100%);
-    --card: 0 0% 5%;
+    /* cards, popovers and borders are tinted navy so they sit naturally on the page surface */
+    --card: 222 36% 9%;
     --card-foreground: 0 0% 98%;
-    --popover: 0 0% 5%;
+    --popover: 222 36% 9%;
     --popover-foreground: 0 0% 98%;
     --primary: 0 0% 98%;
     --primary-foreground: 0 0% 9%;
-    --secondary: 0 0% 15%;
+    --secondary: 222 28% 15%;
     --secondary-foreground: 0 0% 98%;
-    --muted: 0 0% 15%;
-    --muted-foreground: 0 0% 63.9%;
-    --accent: 0 0% 15%;
+    --muted: 222 28% 15%;
+    --muted-foreground: 215 16% 66%;
+    --accent: 222 28% 15%;
     --accent-foreground: 0 0% 98%;
     --destructive: 0 62.8% 30.6%;
     --destructive-foreground: 0 0% 98%;
-    --border: 0 0% 15%;
-    --input: 0 0% 15%;
-    --ring: 0 0% 83.9%;
+    --border: 222 26% 18%;
+    --input: 222 26% 18%;
+
+    --brand: 217 91% 64%;
+    --brand-deep: 222 62% 12%;
+
+    --page-surface-color: #070b1f;
+    --page-surface-image:
+      radial-gradient(ellipse 75% 55% at 0% 0%, hsl(var(--brand) / 0.40), transparent 70%),
+      radial-gradient(ellipse 65% 55% at 100% 0%, hsl(268 85% 60% / 0.32), transparent 70%),
+      radial-gradient(ellipse 80% 60% at 50% 115%, hsl(280 80% 45% / 0.24), transparent 70%),
+      linear-gradient(165deg, #0b1233 0%, #0a0f2a 50%, #070a1c 100%);
+    --card-shadow:
+      0 1px 2px rgba(0, 0, 0, 0.4),
+      0 12px 32px -16px rgba(0, 0, 0, 0.6);
   }
 
   .dark .reports-theme {
@@ -72,112 +118,324 @@
   }
 }
 
+@supports (transition-timing-function: linear(0, 1)) {
+  :root {
+    --spring: linear(0, 0.03, 0.109, 0.221, 0.352, 0.491, 0.628, 0.755, 0.868, 0.963, 1.038, 1.094, 1.133, 1.155, 1.163, 1.16, 1.148, 1.131, 1.11, 1.087, 1.065, 1.044, 1.025, 1.009, 0.996, 0.986, 0.979, 0.975, 0.974, 0.974, 0.975, 0.978, 0.981, 0.985, 0.989, 0.992, 1);
+    --spring-soft: linear(0, 0.016, 0.059, 0.122, 0.198, 0.281, 0.368, 0.455, 0.54, 0.619, 0.693, 0.759, 0.818, 0.87, 0.913, 0.95, 0.98, 1.004, 1.022, 1.035, 1.045, 1.051, 1.054, 1.054, 1.053, 1.05, 1.047, 1.043, 1.038, 1.033, 1.029, 1.024, 1.02, 1.016, 1.012, 1.009, 1);
+  }
+}
+
+/* ==========================================================================
+   PAGE BACKGROUND
+   Applied in three places (body, the Next.js root wrapper, and any
+   .min-h-screen element) because each of those paints its own background.
+   All three use the same tokens plus background-attachment: fixed, so the
+   layers line up exactly and read as one surface.
+
+   Opt-outs: add .no-page-surface to any element that must keep its own
+   background. .auth-surface (the login style) is excluded automatically.
+   ========================================================================== */
 @layer base {
   * {
     @apply border-border;
   }
+
   body {
     @apply bg-background text-foreground;
-    background-color: var(--page-surface-color) !important;
-    background-image: var(--page-surface-image) !important;
-    background-repeat: no-repeat;
-    background-attachment: fixed;
   }
-  #__next > :first-child {
-    background-color: var(--page-surface-color) !important;
-    background-image: var(--page-surface-image) !important;
-    background-repeat: no-repeat;
-    background-attachment: fixed;
+
+  ::selection {
+    background: hsl(var(--brand) / 0.22);
+  }
+
+  :focus-visible {
+    outline: 2px solid hsl(var(--ring));
+    outline-offset: 2px;
   }
 }
 
 @media screen {
-  .min-h-screen {
+  body,
+  #__next > :first-child:not(.auth-surface):not(.no-page-surface),
+  .min-h-screen:not(.auth-surface):not(.no-page-surface) {
     background-color: var(--page-surface-color) !important;
     background-image: var(--page-surface-image) !important;
-    background-repeat: no-repeat;
-    background-attachment: fixed;
+    background-size: var(--page-surface-size) !important;
+    background-repeat: var(--page-surface-repeat) !important;
+    background-attachment: fixed !important;
   }
 }
 
+/* ==========================================================================
+   COMPONENTS
+   ========================================================================== */
 @layer components {
+  /* ---- Navbar: floating jelly-glass pill ----
+     Mostly clear glass: strong blur, bright thick edges, a faint tint only.
+     Layers: frosted base + cursor spotlight, very soft colour haze (::before),
+     a near-white iridescent rim (::after), and inner edge shadows for thickness.
+     Motion uses the --spring / --spring-soft curves so it settles smoothly. */
+  .navbar-float {
+    animation: jelly-enter 1100ms var(--spring-soft) backwards;
+  }
+
   .navbar-glass {
+    --nav-k: 1; /* colour haze strength multiplier (a bit higher in dark mode) */
     position: relative;
     isolation: isolate;
     overflow: hidden;
-    background: linear-gradient(
-      110deg,
-      rgba(210, 226, 247, 0.78),
-      rgba(195, 216, 243, 0.67) 52%,
-      rgba(207, 224, 247, 0.75)
-    );
-    -webkit-backdrop-filter: blur(36px) saturate(190%) contrast(108%);
-    backdrop-filter: blur(36px) saturate(190%) contrast(108%);
-    border-bottom: 1px solid rgba(255, 255, 255, 0.62);
+    border-radius: 9999px;
+    border: 1px solid hsl(0 0% 100% / 0.55);
+    background:
+      radial-gradient(
+        220px circle at var(--mx, -400px) var(--my, -400px),
+        hsl(0 0% 100% / 0.6),
+        transparent 65%
+      ),
+      linear-gradient(
+        180deg,
+        hsl(0 0% 100% / 0.5) 0%,
+        hsl(0 0% 100% / 0.18) 50%,
+        hsl(0 0% 100% / 0.08) 52%,
+        hsl(var(--brand) / 0.04) 100%
+      );
+    -webkit-backdrop-filter: blur(24px) saturate(160%) brightness(1.04);
+    backdrop-filter: blur(24px) saturate(160%) brightness(1.04);
     box-shadow:
-      0 1px 0 rgba(57, 91, 137, 0.16),
-      0 12px 36px rgba(27, 55, 96, 0.12),
-      inset 0 1px 0 rgba(255, 255, 255, 0.72);
-    animation: navbar-enter 700ms cubic-bezier(0.2, 0.75, 0.25, 1) both;
-    transition: background 350ms ease, box-shadow 350ms ease;
+      inset 0 2px 1px hsl(0 0% 100% / 0.9),
+      inset 0 -10px 18px -10px hsl(var(--brand) / 0.14),
+      inset 14px 0 18px -16px hsl(0 0% 100% / 0.85),
+      inset -14px 0 18px -16px hsl(0 0% 100% / 0.65),
+      0 18px 36px -20px hsl(var(--brand-deep) / 0.35),
+      0 4px 10px -4px hsl(var(--brand-deep) / 0.15);
+    will-change: transform;
+    transition: transform 800ms var(--spring-soft);
   }
-
-  .navbar-glass::after {
-    position: absolute;
-    z-index: 1;
-    top: 0;
-    left: -38%;
-    width: 34%;
-    height: 1px;
-    background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.95), transparent);
-    content: "";
-    pointer-events: none;
-    animation: navbar-glint 1400ms 450ms ease-out both;
-  }
-
   .navbar-glass:hover {
-    box-shadow:
-      0 1px 0 rgba(57, 91, 137, 0.19),
-      0 14px 40px rgba(27, 55, 96, 0.15),
-      inset 0 1px 0 rgba(255, 255, 255, 0.8);
+    transform: scale(1.004, 0.993);
+  }
+  .navbar-glass:active {
+    transform: scale(0.996, 1.012);
+  }
+
+  /* very soft colour haze + fine grain, seen through the glass */
+  .navbar-glass::before {
+    content: "";
+    position: absolute;
+    z-index: -1;
+    inset: -60% -10%;
+    pointer-events: none;
+    background-image:
+      radial-gradient(22% 55% at 10% 55%, hsl(var(--brand) / calc(0.2 * var(--nav-k))), transparent 70%),
+      radial-gradient(18% 50% at 32% 40%, hsl(268 90% 72% / calc(0.14 * var(--nav-k))), transparent 70%),
+      radial-gradient(20% 55% at 58% 60%, hsl(192 95% 60% / calc(0.12 * var(--nav-k))), transparent 70%),
+      radial-gradient(18% 50% at 80% 45%, hsl(330 90% 75% / calc(0.09 * var(--nav-k))), transparent 70%),
+      radial-gradient(18% 55% at 96% 55%, hsl(var(--brand) / calc(0.18 * var(--nav-k))), transparent 70%),
+      var(--navbar-grain);
+    background-size: 100% 100%, 100% 100%, 100% 100%, 100% 100%, 100% 100%, 160px 160px;
+    background-repeat: no-repeat, no-repeat, no-repeat, no-repeat, no-repeat, repeat;
+    will-change: transform;
+    animation: navbar-blobs 20s ease-in-out infinite alternate;
+  }
+
+  /* near-white glass rim with a faint iridescent shimmer (gradient border via mask) */
+  .navbar-glass::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    z-index: 2;
+    border-radius: inherit;
+    padding: 1.5px;
+    pointer-events: none;
+    background: linear-gradient(
+      115deg,
+      hsl(0 0% 100% / 0.95),
+      hsl(0 0% 100% / 0.15) 22%,
+      hsl(192 90% 82% / 0.35) 40%,
+      hsl(0 0% 100% / 0.12) 58%,
+      hsl(330 85% 86% / 0.3) 76%,
+      hsl(0 0% 100% / 0.95)
+    );
+    background-size: 200% 100%;
+    -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+    -webkit-mask-composite: xor;
+    mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+    mask-composite: exclude;
+    animation: navbar-flow 18s linear infinite;
   }
 
   .dark .navbar-glass {
-    background: linear-gradient(
-      110deg,
-      rgba(7, 18, 38, 0.78),
-      rgba(12, 30, 59, 0.7) 52%,
-      rgba(14, 27, 53, 0.76)
-    );
-    border-bottom-color: rgba(191, 219, 254, 0.14);
+    --nav-k: 1.3;
+    border-color: hsl(0 0% 100% / 0.14);
+    background:
+      radial-gradient(
+        220px circle at var(--mx, -400px) var(--my, -400px),
+        hsl(0 0% 100% / 0.14),
+        transparent 65%
+      ),
+      linear-gradient(
+        180deg,
+        hsl(222 40% 22% / 0.45) 0%,
+        hsl(222 45% 10% / 0.34) 50%,
+        hsl(222 45% 8% / 0.34) 52%,
+        hsl(222 45% 10% / 0.45) 100%
+      );
     box-shadow:
-      0 1px 0 rgba(96, 165, 250, 0.12),
-      0 14px 40px rgba(0, 0, 0, 0.3),
-      inset 0 1px 0 rgba(219, 234, 254, 0.1);
-    -webkit-backdrop-filter: blur(40px) saturate(185%) contrast(110%);
-    backdrop-filter: blur(40px) saturate(185%) contrast(110%);
+      inset 0 1.5px 1px hsl(0 0% 100% / 0.3),
+      inset 0 -10px 18px -10px hsl(var(--brand) / 0.2),
+      inset 14px 0 18px -16px hsl(0 0% 100% / 0.22),
+      inset -14px 0 18px -16px hsl(0 0% 100% / 0.16),
+      0 20px 44px -22px rgba(0, 0, 0, 0.7),
+      0 4px 12px -4px rgba(0, 0, 0, 0.5);
   }
 
-  .dark .navbar-glass:hover {
-    box-shadow:
-      0 1px 0 rgba(96, 165, 250, 0.16),
-      0 16px 44px rgba(0, 0, 0, 0.36),
-      inset 0 1px 0 rgba(219, 234, 254, 0.13);
+  /* jelly press for small round buttons (use instead of transition-colors) */
+  .jelly {
+    transition:
+      transform 700ms var(--spring),
+      background-color 200ms,
+      color 200ms,
+      opacity 200ms;
+  }
+  .jelly:hover {
+    transform: scale(1.07, 0.95);
+  }
+  .jelly:active {
+    transform: scale(0.9, 1.1);
   }
 
-  .dark .navbar-glass::after {
-    background: linear-gradient(90deg, transparent, rgba(147, 197, 253, 0.9), transparent);
+  /* gentler jelly for links and menu tiles */
+  .jelly-soft {
+    transition:
+      transform 650ms var(--spring-soft),
+      background-color 200ms,
+      color 200ms,
+      opacity 200ms,
+      box-shadow 200ms;
+  }
+  .jelly-soft:hover {
+    transform: scale(1.03, 0.975);
+  }
+  .jelly-soft:active {
+    transform: scale(0.96, 1.04);
+  }
+
+  /* browsers without backdrop-filter get a more solid pill */
+  @supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+    .navbar-glass {
+      background: hsl(0 0% 100% / 0.96);
+    }
+    .dark .navbar-glass {
+      background: hsl(222 47% 8% / 0.96);
+    }
+  }
+
+  /* ---- Optional card helper: tinted shadow instead of generic grey ---- */
+  .surface-card {
+    background: hsl(var(--card));
+    color: hsl(var(--card-foreground));
+    border: 1px solid hsl(var(--border));
+    border-radius: calc(var(--radius) + 4px);
+    box-shadow: var(--card-shadow);
+  }
+
+  /* ---- Login / landing: the one place that gets a bold background ----
+     Deep school colour, a bright glow, and faint ruled-notebook lines. */
+  .auth-surface {
+    position: relative;
+    isolation: isolate;
+    overflow: hidden;
+    color: #fff;
+    background-color: hsl(var(--brand-deep));
+    background-image:
+      radial-gradient(ellipse 70% 60% at 12% 8%, hsl(var(--brand) / 0.6), transparent 70%),
+      radial-gradient(ellipse 50% 50% at 100% 100%, hsl(var(--brand) / 0.28), transparent 72%),
+      repeating-linear-gradient(
+        0deg,
+        rgba(255, 255, 255, 0.05) 0 1px,
+        transparent 1px 34px
+      );
   }
 }
 
-@keyframes navbar-enter {
+@layer utilities {
+  .bg-background {
+    background-color: hsl(var(--background));
+  }
+}
+
+/* ==========================================================================
+   REPORT CARD
+   Uses theme tokens so it works in light and dark mode, and prints cleanly.
+   ========================================================================== */
+.report-card-container {
+  display: flex;
+  justify-content: safe center;
+  align-items: center;
+  padding: 30px; /* print-safe margin */
+  overflow-x: auto;
+}
+
+.report-card-table {
+  border-collapse: separate;
+  border-spacing: 0;
+  font-size: 1.1rem;
+  font-family: "Segoe UI", system-ui, -apple-system, Tahoma, sans-serif;
+  font-variant-numeric: tabular-nums; /* grades line up in columns */
+  width: auto;
+  background: hsl(var(--card));
+  color: hsl(var(--card-foreground));
+  border: 1px solid hsl(var(--border));
+  border-radius: 12px;
+  box-shadow: var(--card-shadow);
+  overflow: hidden;
+}
+
+.report-card-table th,
+.report-card-table td {
+  padding: 14px 22px;
+  text-align: center;
+  border-bottom: 1px solid hsl(var(--border));
+}
+
+.report-card-table tbody tr:last-child td {
+  border-bottom: 0;
+}
+
+.report-card-table thead th {
+  background: hsl(var(--brand) / 0.08);
+  font-weight: 600;
+  border-bottom: 1px solid hsl(var(--brand) / 0.2);
+}
+
+.report-card-table tbody tr:nth-child(even) {
+  background: hsl(var(--muted) / 0.55);
+}
+
+.report-card-table tbody tr:hover {
+  background: hsl(var(--brand) / 0.06);
+}
+
+/* ==========================================================================
+   KEYFRAMES
+   ========================================================================== */
+@keyframes jelly-enter {
+  from { opacity: 0; transform: translateY(-34px) scale(0.9, 1.08); }
+  to   { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+@keyframes navbar-blobs {
   from {
-    opacity: 0;
-    transform: translateY(-14px);
+    transform: translate3d(-4%, -2%, 0) rotate(-1.5deg);
   }
   to {
-    opacity: 1;
-    transform: translateY(0);
+    transform: translate3d(4%, 2%, 0) rotate(1.5deg);
+  }
+}
+
+@keyframes navbar-flow {
+  to {
+    background-position: 200% 0;
   }
 }
 
@@ -195,19 +453,6 @@
   }
 }
 
-@media (prefers-reduced-motion: reduce) {
-  .navbar-glass,
-  .navbar-glass::after {
-    animation: none;
-  }
-}
-
-@layer utilities {
-  .bg-background {
-    background-color: hsl(var(--background));
-  }
-}
-
 @keyframes slideInFromTop {
   0% {
     transform: translateY(-100%);
@@ -219,45 +464,6 @@
   }
 }
 
-/* Add this in your global CSS file */
-.report-card-container {
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  padding: 30px; /* print-safe margin */
-}
-
-.report-card-table {
-  border-collapse: collapse;
-  font-size: 1.1rem; /* slightly larger text */
-  font-family: 'Segoe UI', Tahoma, sans-serif;
-  width: auto;
-  background: white;
-  box-shadow: 0 0 15px rgba(0,0,0,0.05);
-  border-radius: 10px;
-  overflow: hidden;
-}
-
-.report-card-table th,
-.report-card-table td {
-  padding: 14px 22px;
-  text-align: center;
-}
-
-.report-card-table thead {
-  background: #f5f5f5;
-  font-weight: 600;
-}
-
-.report-card-table tbody tr:nth-child(even) {
-  background: #fafafa;
-}
-
-.report-card-table tbody tr:hover {
-  background: rgba(0, 0, 0, 0.02);
-}
-
-
 @keyframes slideOutToTop {
   0% {
     transform: translateY(0);
@@ -266,5 +472,81 @@
   100% {
     transform: translateY(-100%);
     opacity: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .navbar-float,
+  .navbar-glass::before,
+  .navbar-glass::after {
+    animation: none;
+  }
+  .navbar-glass,
+  .jelly,
+  .jelly-soft {
+    transition: none;
+  }
+  .navbar-glass:hover,
+  .navbar-glass:active,
+  .jelly:hover,
+  .jelly:active,
+  .jelly-soft:hover,
+  .jelly-soft:active {
+    transform: none;
+  }
+}
+
+/* ==========================================================================
+   PRINT
+   Plain white page, black text, no decorative layers, regardless of theme.
+   ========================================================================== */
+@media print {
+  body {
+    background: #fff !important;
+    background-image: none !important;
+    color: #000 !important;
+  }
+
+  .navbar-float {
+    animation: none;
+  }
+
+  .navbar-glass {
+    background: #fff;
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+    box-shadow: none;
+    animation: none;
+  }
+
+  .navbar-glass::before,
+  .navbar-glass::after {
+    display: none;
+  }
+
+  .report-card-container {
+    padding: 0;
+  }
+
+  .report-card-table {
+    background: #fff;
+    color: #000;
+    border-color: #cfd6e2;
+    box-shadow: none;
+  }
+
+  .report-card-table th,
+  .report-card-table td {
+    border-bottom-color: #dde3ee;
+  }
+
+  .report-card-table thead th {
+    background: #eef2f8;
+    border-bottom-color: #b8c3d6;
+  }
+
+  .report-card-table tbody tr:nth-child(even),
+  .report-card-table tbody tr:hover {
+    background: transparent;
   }
 }
