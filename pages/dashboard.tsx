@@ -175,7 +175,7 @@ export default function Dashboard() {
     setDeleteClassId(null); setIsDeleteDialogOpen(false)
   }
 
-  if (isLoading) return <Loader />
+  if (isLoading) return <Loader fullScreen />
 
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-[#0f172a] dark:bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] dark:from-slate-900 dark:via-[#0a0f1d] dark:to-black text-slate-900 dark:text-slate-100 font-sans selection:bg-blue-500/30 transition-colors duration-300">

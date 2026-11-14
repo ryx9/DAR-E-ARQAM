@@ -289,7 +289,7 @@ export default function ClassPage() {
   }
 
   if (isLoading && !classData) {
-    return <Loader />
+    return <Loader fullScreen />
   }
 
   return (

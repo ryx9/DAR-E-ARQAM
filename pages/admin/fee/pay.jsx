@@ -8,6 +8,13 @@ import Loader from '../../../components/Loader';
 import { Button } from '../../../components/ui/button';
 import { Input } from '../../../components/ui/input';
 import { Label } from '../../../components/ui/label';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+} from '../../../components/ui/dialog';
 import { useToast } from '../../../hooks/use-toast';
 import { printReceipt } from '../../../utils/printReceipt';
 import {
@@ -17,11 +24,15 @@ import {
   Ban,
   ArrowRight,
   History,
+  BellRing,
+  CalendarDays,
+  CheckCircle2,
   Wallet,
   Search,
   FileQuestion,
   Banknote,
   Smartphone,
+  UserRound,
 } from 'lucide-react';
 
 const todayLocal = () => {
@@ -39,6 +50,7 @@ export default function PayInvoiceContent() {
   // --- State ---
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
+  const [checkoutOpen, setCheckoutOpen] = useState(false);
 
   const [invoice, setInvoice] = useState(null);
   const [student, setStudent] = useState(null);
@@ -207,7 +219,7 @@ export default function PayInvoiceContent() {
   };
 
   const handlePaymentSubmit = async () => {
-    if (totalPayingNow <= 0 || isAnyItemOverpaying) return;
+    if (submitting || totalPayingNow <= 0 || isAnyItemOverpaying) return;
     setSubmitting(true);
 
     try {
@@ -473,211 +485,123 @@ export default function PayInvoiceContent() {
     );
   }
 
-  // --- STANDARD PAYMENT UI ---
+  const paymentMethods = [
+    { id: 'cash', label: 'Cash', icon: Banknote },
+    { id: 'jazzcash', label: 'JazzCash', icon: Smartphone },
+    { id: 'easypaisa', label: 'Easypaisa', icon: Smartphone },
+    ...(isSuperAdmin ? [{ id: 'adjustment', label: 'Adjustment', icon: Wallet }] : []),
+  ];
+
   return (
     <>
       <Navbar />
-      <div className={pageBackground}>
-        <div className="max-w-7xl mx-auto space-y-6 p-4 md:p-8">
-          {/* HEADER WITH TOGGLE CHECKBOX */}
-          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-            <div className="flex items-center gap-4">
+      <main className={pageBackground}>
+        <div className="mx-auto max-w-7xl px-3 py-4 md:px-6 md:py-7">
+          <header className="mb-6 flex flex-col justify-between gap-4 sm:flex-row sm:items-center">
+            <div className="flex items-center gap-3">
               <Button
                 variant="outline"
                 size="icon"
                 onClick={() => router.back()}
-                className="rounded-full bg-white dark:bg-slate-800 border-gray-200 dark:border-slate-700 hover:bg-gray-100 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200"
+                className="rounded-full border-slate-200 bg-white dark:border-slate-700 dark:bg-slate-900"
               >
-                <ArrowLeft className="w-5 h-5" />
+                <ArrowLeft className="h-4 w-4" />
               </Button>
               <div>
-                <h1 className="text-3xl font-bold text-gray-900 dark:text-white">Fee Collection</h1>
-                <p className="text-gray-500 dark:text-slate-400 text-sm font-medium">
-                  Processing Invoice #{invoiceId}
+                <h1 className="text-2xl font-bold tracking-tight md:text-3xl">Record payment</h1>
+                <p className="text-sm text-slate-500 dark:text-slate-400">
+                  Invoice #{invoiceId} · Select the fee items being paid.
                 </p>
               </div>
             </div>
-
-            <div className="flex items-center gap-3 bg-green-600 dark:bg-green-700 text-white px-4 py-3 rounded-xl border border-transparent shadow-sm transition-colors">
+            <label
+              className={`flex cursor-pointer items-center gap-3 rounded-xl border px-4 py-3 text-sm transition ${sendMessageToParent ? 'border-emerald-300 bg-emerald-50 text-emerald-800 dark:border-emerald-500/30 dark:bg-emerald-500/10 dark:text-emerald-200' : 'border-slate-200 bg-white text-slate-600 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300'}`}
+            >
               <input
                 type="checkbox"
-                id="sendNotification"
                 checked={sendMessageToParent}
                 onChange={e => setSendMessageToParent(e.target.checked)}
-                className="w-5 h-5 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500 dark:focus:ring-blue-500 dark:ring-offset-slate-900 focus:ring-2 dark:bg-slate-800 dark:border-slate-600 cursor-pointer"
+                className="h-4 w-4 accent-emerald-600"
               />
-              <Label
-                htmlFor="sendNotification"
-                className="text-sm font-bold text-white cursor-pointer select-none"
-              >
-                Send SMS/WhatsApp to Parent
-              </Label>
-            </div>
-          </div>
-
-          <div className="flex flex-col lg:flex-row gap-6 items-start">
-            {/* LEFT COLUMN: Student & Summary */}
-            <div className="w-full lg:w-1/3 space-y-6">
-              {/* Student Card */}
-              <div className={`${cardClass} p-6`}>
-                <div className="flex items-center gap-4 mb-6 border-b border-gray-100 dark:border-slate-800 pb-4">
-                  <div className="w-12 h-12 rounded-full bg-blue-50 dark:bg-blue-900/30 flex items-center justify-center text-blue-600 dark:text-blue-400 font-bold text-xl border border-blue-100 dark:border-blue-800">
-                    {student?.name?.charAt(0) || '?'}
-                  </div>
+              <BellRing className="h-4 w-4" />
+              <span className="font-semibold">Send parent receipt</span>
+            </label>
+          </header>
+          <div className="grid grid-cols-1 gap-3 md:grid-cols-2 md:gap-5">
+            <section className="order-2 min-w-0 space-y-6 md:col-span-2">
+              <div className={`${cardClass} overflow-hidden`}>
+                <div className="flex items-center justify-between border-b border-slate-200 bg-slate-50 px-5 py-4 dark:border-slate-800 dark:bg-slate-900">
                   <div>
-                    {/* Explicitly setting text-slate-900 dark:text-white so it's always visible */}
-                    <h3 className="font-bold text-lg text-slate-900 dark:text-white">
-                      {student?.name || 'Unknown Student'}
-                    </h3>
-                    <p className="text-sm text-gray-500 dark:text-blue-400 font-mono">
-                      {student?.studentid}
+                    <h2 className="font-bold">Payment allocation</h2>
+                    <p className="mt-0.5 text-sm text-slate-500">
+                      Enter an amount only against the fee items received today.
                     </p>
                   </div>
+                  <CreditCard className="h-5 w-5 text-indigo-500" />
                 </div>
-
-                <div className="space-y-3 text-sm">
-                  <div className="flex justify-between p-2 rounded-lg bg-gray-50 dark:bg-slate-800">
-                    <span className="text-gray-500 dark:text-slate-400">Father Name</span>
-                    <span className="font-semibold text-slate-800 dark:text-slate-200">
-                      {student?.fathername || 'N/A'}
-                    </span>
-                  </div>
-                  <div className="flex justify-between p-2 rounded-lg bg-gray-50 dark:bg-slate-800">
-                    <span className="text-gray-500 dark:text-slate-400">Class</span>
-                    <span className="font-semibold text-slate-800 dark:text-slate-200">
-                      {student?.classes?.name || student?.class_id || 'N/A'}
-                    </span>
-                  </div>
-                </div>
-              </div>
-
-              {/* Summary Card */}
-              {/* Keeping dark background on both modes for strong contrast on the summary */}
-              <div
-                className={`${cardClass} p-6 bg-slate-900 dark:bg-slate-900 text-slate-100 border-slate-800 dark:border-slate-800`}
-              >
-                <h3 className="text-slate-400 text-xs font-bold uppercase tracking-wider mb-6">
-                  Payment Summary
-                </h3>
-                <div className="space-y-4">
-                  <div className="flex justify-between items-center">
-                    <span className="text-slate-400 text-sm">Grand Total</span>
-                    <span className="font-mono text-lg text-white">
-                      {grandTotal.toLocaleString()}
-                    </span>
-                  </div>
-                  <div className="flex justify-between items-center text-emerald-400">
-                    <span className="text-sm flex items-center gap-2">
-                      <History className="w-4 h-4" /> Paid History
-                    </span>
-                    <span className="font-mono text-lg">
-                      -{totalPreviouslyPaid.toLocaleString()}
-                    </span>
-                  </div>
-                  <div className="h-px bg-slate-700 dark:bg-slate-700 my-2"></div>
-                  <div className="flex justify-between items-end">
-                    <span className="text-blue-400 font-bold">Balance Due</span>
-                    <span className="font-bold text-2xl text-white">
-                      {globalBalance.toLocaleString()}
-                    </span>
-                  </div>
-                </div>
-              </div>
-
-              {/* Notes Input */}
-              <div className={`${cardClass} p-4`}>
-                <Label className="text-xs text-gray-500 dark:text-blue-400 uppercase font-bold mb-2 block">
-                  Transaction Notes
-                </Label>
-                <Input
-                  placeholder="e.g. Received by Admin..."
-                  value={notes}
-                  onChange={e => setNotes(e.target.value)}
-                  className="flex h-10 w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-black placeholder:text-gray-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 disabled:cursor-not-allowed disabled:opacity-50 dark:border-slate-700 dark:bg-slate-800 dark:text-white dark:placeholder:text-slate-500 dark:focus-visible:ring-blue-500"
-                />
-              </div>
-
-              {isSuperAdmin && (
-                <div className={`${cardClass} p-4`}>
-                  <Label className="text-xs text-gray-500 dark:text-blue-400 uppercase font-bold mb-2 block">
-                    Payment date
-                  </Label>
-                  <Input
-                    type="date"
-                    value={paymentDate}
-                    onChange={e => setPaymentDate(e.target.value)}
-                    className="flex h-10 w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-black focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 dark:border-slate-700 dark:bg-slate-800 dark:text-white"
-                  />
-                  <p className="mt-2 text-xs text-gray-500 dark:text-slate-400">
-                    Superadmin can record this payment for a previous date.
-                  </p>
-                </div>
-              )}
-            </div>
-
-            {/* RIGHT COLUMN: Payment Table */}
-            <div className="w-full lg:w-2/3 space-y-6">
-              <div className={`${cardClass} p-0 flex flex-col`}>
-                <div className="p-6 border-b border-gray-200 dark:border-slate-800 flex items-center gap-3 bg-gray-50 dark:bg-slate-800/50">
-                  <CreditCard className="w-5 h-5 text-gray-500 dark:text-blue-400" />
-                  <h3 className="font-bold text-lg text-slate-900 dark:text-white">
-                    Fee Breakdown
-                  </h3>
-                </div>
-
                 <div className="overflow-x-auto">
-                  <table className="w-full text-left text-sm">
-                    <thead className="bg-gray-50 dark:bg-slate-800/80 text-xs uppercase text-gray-500 dark:text-slate-400 font-medium border-b border-gray-200 dark:border-slate-700">
+                  <table className="w-full min-w-[600px] text-left text-xs md:min-w-[720px] md:text-sm">
+                    <thead className="border-b border-slate-200 text-xs uppercase tracking-wide text-slate-500 dark:border-slate-800">
                       <tr>
-                        <th className="p-5">Fee Head</th>
-                        <th className="p-5 text-right">Total</th>
-                        <th className="p-5 text-right">Paid</th>
-                        <th className="p-5 text-right w-32">Balance</th>
-                        <th className="p-5 w-48 bg-blue-50 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300">
-                          Pay Now
+                        <th className="p-4">Fee item</th>
+                        <th className="p-4 text-right">Billed</th>
+                        <th className="p-4 text-right">Previously paid</th>
+                        <th className="p-4 text-right">Due</th>
+                        <th className="w-44 bg-indigo-50 p-4 text-right text-indigo-700 dark:bg-indigo-500/10 dark:text-indigo-300">
+                          Receive now
                         </th>
                       </tr>
                     </thead>
-                    <tbody className="divide-y divide-gray-100 dark:divide-slate-800">
+                    <tbody>
                       {calculatedDetails.map(item => (
                         <tr
                           key={item.id}
-                          className={`group hover:bg-gray-50 dark:hover:bg-slate-800 transition-colors ${item.isFullyPaid ? 'opacity-50 grayscale' : ''}`}
+                          className={`border-b border-slate-100 last:border-0 dark:border-slate-800 ${item.isFullyPaid ? 'bg-slate-50/70 dark:bg-slate-900/40' : ''}`}
                         >
-                          <td className="p-5 font-medium text-slate-900 dark:text-slate-200">
-                            {item.fee_type}
+                          <td className="p-4">
+                            <div className="font-semibold">{item.fee_type}</div>
+                            {item.description && (
+                              <div className="mt-0.5 text-xs text-slate-500">
+                                {item.description}
+                              </div>
+                            )}
                             {item.isFullyPaid && (
-                              <span className="ml-2 text-[10px] bg-green-100 text-green-700 dark:bg-green-900/50 dark:text-green-400 px-2 py-0.5 rounded-full">
+                              <span className="mt-2 inline-flex items-center gap-1 rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-300">
+                                <CheckCircle2 className="h-3 w-3" />
                                 Paid
                               </span>
                             )}
                           </td>
-                          <td className="p-5 text-right font-mono text-gray-500 dark:text-slate-400">
+                          <td className="p-4 text-right font-mono text-slate-600 dark:text-slate-300">
                             {item.totalAmount.toLocaleString()}
                           </td>
-                          <td className="p-5 text-right font-mono text-green-600 dark:text-green-500">
-                            {item.alreadyPaid > 0 ? item.alreadyPaid.toLocaleString() : '-'}
+                          <td className="p-4 text-right font-mono text-emerald-600 dark:text-emerald-400">
+                            {item.alreadyPaid ? item.alreadyPaid.toLocaleString() : '—'}
                           </td>
-                          <td className="p-5 text-right font-mono font-bold text-slate-900 dark:text-slate-200">
+                          <td className="p-4 text-right font-mono font-semibold">
                             {item.remainingBalance.toLocaleString()}
                           </td>
                           <td
-                            className={`p-4 bg-blue-50 dark:bg-blue-900/20 ${item.isOver ? 'bg-red-50 dark:bg-red-900/20' : ''}`}
+                            className={`bg-indigo-50/50 p-3 dark:bg-indigo-500/[0.04] ${item.isOver ? 'bg-rose-50 dark:bg-rose-500/10' : ''}`}
                           >
                             <Input
                               type="number"
+                              min="0"
                               disabled={item.remainingBalance <= 0}
                               value={paymentInputs[item.id] === 0 ? '' : paymentInputs[item.id]}
                               onChange={e => handleAmountChange(item.id, e.target.value)}
                               placeholder={
-                                item.remainingBalance > 0 ? item.remainingBalance.toString() : '-'
+                                item.remainingBalance > 0
+                                  ? item.remainingBalance.toString()
+                                  : 'Paid'
                               }
-                              className={`flex h-10 w-full rounded-md border bg-white px-3 py-2 text-right text-sm text-black placeholder:text-gray-400 focus-visible:outline-none focus-visible:ring-2 disabled:cursor-not-allowed disabled:opacity-50 dark:border-slate-600 dark:bg-slate-800 dark:text-white dark:placeholder:text-slate-500 ${
-                                item.isOver
-                                  ? 'border-red-500 text-red-600 focus-visible:ring-red-500 dark:text-red-400 dark:border-red-500/50'
-                                  : 'border-gray-300 focus-visible:ring-blue-500 dark:focus-visible:ring-blue-500'
-                              }`}
+                              className={`h-10 text-right font-mono dark:border-slate-700 dark:bg-slate-800 ${item.isOver ? 'border-rose-500 text-rose-600' : ''}`}
                             />
+                            {item.isOver && (
+                              <p className="mt-1 text-right text-xs text-rose-600">
+                                Exceeds due amount
+                              </p>
+                            )}
                           </td>
                         </tr>
                       ))}
@@ -685,121 +609,181 @@ export default function PayInvoiceContent() {
                   </table>
                 </div>
               </div>
-
-              {/* BOTTOM ACTION SECTION */}
-              <div
-                className={`${cardClass} p-6 md:p-8 flex flex-col md:flex-row items-center justify-between gap-6`}
-              >
-                {/* Total Display */}
-                <div className="flex flex-col items-start w-full md:w-auto">
-                  <span className="text-xs text-gray-500 dark:text-slate-400 uppercase font-bold tracking-wider">
-                    Total Collecting
-                  </span>
-                  <span
-                    className={`text-4xl font-black font-mono leading-none ${isAnyItemOverpaying ? 'text-red-500' : 'text-blue-600 dark:text-blue-400'}`}
-                  >
-                    <span className="text-lg text-gray-400 dark:text-slate-500 mr-2 font-normal">
-                      PKR
-                    </span>
-                    {totalPayingNow.toLocaleString()}
-                  </span>
-                </div>
-
-                {/* Right Side: Payment Methods + Button */}
-                <div className="flex flex-col md:flex-row items-center gap-6 w-full md:w-auto">
-                  {/* Payment Method Selector */}
-                  <div className="flex flex-wrap gap-2 p-1.5 bg-gray-100 dark:bg-slate-800 rounded-xl border border-gray-200 dark:border-slate-700 w-full md:w-auto justify-center">
-                    {/* Option: Cash */}
-                    <button
-                      onClick={() => setPaymentMethod('cash')}
-                      className={`flex flex-col items-center justify-center min-w-[80px] py-3 px-4 rounded-lg text-xs font-bold transition-all duration-200
-                                    ${
-                                      paymentMethod === 'cash'
-                                        ? 'bg-white shadow-md text-blue-700 ring-1 ring-blue-500/20 dark:bg-blue-600 dark:text-white dark:ring-0'
-                                        : 'text-gray-500 hover:bg-gray-200 dark:text-slate-400 dark:hover:bg-slate-700'
-                                    }`}
-                    >
-                      <Banknote className="w-5 h-5 mb-1.5" />
-                      CASH
-                    </button>
-
-                    {/* Option: JazzCash */}
-                    <button
-                      onClick={() => setPaymentMethod('jazzcash')}
-                      className={`flex flex-col items-center justify-center min-w-[80px] py-3 px-4 rounded-lg text-xs font-bold transition-all duration-200
-                                    ${
-                                      paymentMethod === 'jazzcash'
-                                        ? 'bg-white shadow-md text-red-600 ring-1 ring-red-500/20 dark:bg-red-600 dark:text-white dark:ring-0'
-                                        : 'text-gray-500 hover:bg-gray-200 dark:text-slate-400 dark:hover:bg-slate-700'
-                                    }`}
-                    >
-                      <Smartphone className="w-5 h-5 mb-1.5" />
-                      JAZZCASH
-                    </button>
-
-                    {/* Option: EasyPaisa */}
-                    <button
-                      onClick={() => setPaymentMethod('easypaisa')}
-                      className={`flex flex-col items-center justify-center min-w-[80px] py-3 px-4 rounded-lg text-xs font-bold transition-all duration-200
-                                    ${
-                                      paymentMethod === 'easypaisa'
-                                        ? 'bg-white shadow-md text-green-600 ring-1 ring-green-500/20 dark:bg-green-600 dark:text-white dark:ring-0'
-                                        : 'text-gray-500 hover:bg-gray-200 dark:text-slate-400 dark:hover:bg-slate-700'
-                                    }`}
-                    >
-                      <Smartphone className="w-5 h-5 mb-1.5" />
-                      EASYPAISA
-                    </button>
-
-                    {/* Option: Adjustment (superadmin only) */}
-                    {isSuperAdmin && (
-                      <button
-                        onClick={() => setPaymentMethod('adjustment')}
-                        className={`flex flex-col items-center justify-center min-w-[80px] py-3 px-4 rounded-lg text-xs font-bold transition-all duration-200
-                                        ${
-                                          paymentMethod === 'adjustment'
-                                            ? 'bg-white shadow-md text-purple-700 ring-1 ring-purple-500/20 dark:bg-purple-600 dark:text-white dark:ring-0'
-                                            : 'text-gray-500 hover:bg-gray-200 dark:text-slate-400 dark:hover:bg-slate-700'
-                                        }`}
-                      >
-                        <Wallet className="w-5 h-5 mb-1.5" />
-                        ADJUSTMENT
-                      </button>
-                    )}
+            </section>
+            <aside className="contents">
+              <section className={`${cardClass} order-1 h-full p-5`}>
+                <div className="flex items-center gap-3">
+                  <div className="flex h-11 w-11 items-center justify-center rounded-full bg-indigo-100 text-indigo-700 dark:bg-indigo-500/15 dark:text-indigo-300">
+                    <UserRound className="h-5 w-5" />
                   </div>
-
-                  {/* Divider */}
-                  <div className="h-12 w-px bg-gray-200 dark:bg-slate-700 hidden md:block"></div>
-
-                  {/* Action Buttons */}
-                  <div className="flex gap-3 w-full md:w-auto">
-                    <Button
-                      size="lg"
-                      onClick={handlePaymentSubmit}
-                      disabled={submitting || totalPayingNow <= 0 || isAnyItemOverpaying}
-                      className={`w-full md:w-auto min-w-[200px] h-14 font-bold shadow-xl transition-all rounded-xl text-lg flex items-center justify-center gap-2 text-white disabled:opacity-50 disabled:bg-slate-400 dark:disabled:bg-slate-700
-                        ${
-                          isAnyItemOverpaying
-                            ? 'bg-red-600 hover:bg-red-700 cursor-not-allowed'
-                            : 'bg-emerald-600 hover:bg-emerald-700 dark:bg-emerald-600 dark:hover:bg-emerald-700'
-                        }`}
+                  <div>
+                    <h2 className="font-bold">{student?.name || 'Unknown student'}</h2>
+                    <p className="text-sm text-slate-500">
+                      ID {student?.studentid} · {student?.classes?.name || student?.class_id || '—'}
+                    </p>
+                  </div>
+                </div>
+                <dl className="mt-5 space-y-2 border-t border-slate-200 pt-4 text-sm dark:border-slate-800">
+                  <div className="flex justify-between gap-3">
+                    <dt className="text-slate-500">Father / guardian</dt>
+                    <dd className="font-medium text-right">{student?.fathername || '—'}</dd>
+                  </div>
+                  <div className="flex justify-between gap-3">
+                    <dt className="text-slate-500">Invoice date</dt>
+                    <dd className="font-medium">{invoice?.invoice_date || '—'}</dd>
+                  </div>
+                </dl>
+              </section>
+              <section
+                className={`${cardClass} order-1 h-full p-5 text-slate-900 dark:text-slate-100`}
+              >
+                <p className="text-xs font-bold uppercase tracking-widest text-slate-500 dark:text-slate-400">
+                  Invoice balance
+                </p>
+                <div className="mt-4 space-y-3 text-sm">
+                  <div className="flex justify-between">
+                    <span className="text-slate-500 dark:text-slate-400">Invoice total</span>
+                    <b>{grandTotal.toLocaleString()}</b>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="flex items-center gap-1 text-emerald-700 dark:text-emerald-300">
+                      <History className="h-3.5 w-3.5" />
+                      Previously paid
+                    </span>
+                    <b className="text-emerald-700 dark:text-emerald-300">
+                      −{totalPreviouslyPaid.toLocaleString()}
+                    </b>
+                  </div>
+                  <div className="border-t border-slate-200 pt-3 dark:border-slate-700">
+                    <div className="flex items-end justify-between">
+                      <span className="font-semibold text-indigo-700 dark:text-indigo-300">
+                        Balance due
+                      </span>
+                      <b className="text-2xl">PKR {globalBalance.toLocaleString()}</b>
+                    </div>
+                  </div>
+                </div>
+              </section>
+              <Dialog
+                open={checkoutOpen}
+                onOpenChange={open => {
+                  if (!submitting) setCheckoutOpen(open);
+                }}
+              >
+                <DialogContent className="max-h-[85vh] overflow-y-auto rounded-2xl border-slate-200 bg-white text-slate-900 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100">
+                  <DialogHeader>
+                    <DialogTitle>Complete payment</DialogTitle>
+                    <DialogDescription>
+                      Invoice #{invoiceId} · {student?.name} · PKR {totalPayingNow.toLocaleString()}
+                    </DialogDescription>
+                  </DialogHeader>
+                  <section>
+                    <Label className="text-xs font-bold uppercase tracking-widest text-slate-500">
+                      Payment method
+                    </Label>
+                    <div className="mt-3 grid grid-cols-2 gap-2">
+                      {paymentMethods.map(option => {
+                        const Icon = option.icon;
+                        const active = paymentMethod === option.id;
+                        return (
+                          <button
+                            key={option.id}
+                            type="button"
+                            onClick={() => setPaymentMethod(option.id)}
+                            className={`flex items-center gap-2 rounded-xl border p-3 text-left text-sm font-semibold transition ${active ? 'border-indigo-600 bg-indigo-600 text-white shadow-md shadow-indigo-600/20' : 'border-slate-200 bg-white text-slate-700 hover:border-indigo-300 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300'}`}
+                          >
+                            <Icon className="h-4 w-4" />
+                            {option.label}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </section>
+                  <section>
+                    <Label
+                      htmlFor="notes"
+                      className="text-xs font-bold uppercase tracking-widest text-slate-500"
                     >
-                      {submitting ? (
-                        <Loader />
-                      ) : (
-                        <>
-                          <Printer className="w-5 h-5" />
-                          Submit & Print
-                        </>
-                      )}
+                      Transaction note
+                    </Label>
+                    <Input
+                      id="notes"
+                      placeholder="Optional note for this receipt"
+                      value={notes}
+                      onChange={e => setNotes(e.target.value)}
+                      className="mt-2 dark:border-slate-700 dark:bg-slate-800"
+                    />
+                    {isSuperAdmin && (
+                      <>
+                        <Label
+                          htmlFor="paymentDate"
+                          className="mt-4 flex items-center gap-2 text-xs font-bold uppercase tracking-widest text-slate-500"
+                        >
+                          <CalendarDays className="h-3.5 w-3.5" />
+                          Payment date
+                        </Label>
+                        <Input
+                          id="paymentDate"
+                          type="date"
+                          value={paymentDate}
+                          onChange={e => setPaymentDate(e.target.value)}
+                          className="mt-2 dark:border-slate-700 dark:bg-slate-800"
+                        />
+                      </>
+                    )}
+                  </section>
+                  <div className="flex gap-3 border-t border-slate-200 pt-4 dark:border-slate-700">
+                    <Button
+                      variant="outline"
+                      disabled={submitting}
+                      onClick={() => setCheckoutOpen(false)}
+                      className="dark:border-slate-700 dark:bg-slate-800"
+                    >
+                      Back
+                    </Button>
+                    <Button
+                      onClick={handlePaymentSubmit}
+                      disabled={
+                        submitting ||
+                        totalPayingNow <= 0 ||
+                        isAnyItemOverpaying ||
+                        (isSuperAdmin && !paymentDate)
+                      }
+                      className="flex-1 bg-emerald-600 text-white hover:bg-emerald-700"
+                    >
+                      <Printer className="mr-2 h-4 w-4" />
+                      {submitting ? 'Recording payment…' : 'Confirm & print receipt'}
                     </Button>
                   </div>
+                </DialogContent>
+              </Dialog>
+              <section className="order-3 flex flex-col gap-4 rounded-2xl border border-indigo-200 bg-indigo-50 p-5 sm:flex-row sm:items-center sm:justify-between md:col-span-2 dark:border-indigo-500/20 dark:bg-indigo-500/10">
+                <div>
+                  <p className="text-xs font-bold uppercase tracking-widest text-indigo-700 dark:text-indigo-300">
+                    Collection today
+                  </p>
+                  <p
+                    className={`mt-2 text-3xl font-black ${isAnyItemOverpaying ? 'text-rose-600' : 'text-indigo-700 dark:text-indigo-300'}`}
+                  >
+                    PKR {totalPayingNow.toLocaleString()}
+                  </p>
+                  <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+                    Choose payment method and add comments at checkout.
+                  </p>
                 </div>
-              </div>
-            </div>
+                <Button
+                  size="lg"
+                  onClick={() => setCheckoutOpen(true)}
+                  disabled={submitting || totalPayingNow <= 0 || isAnyItemOverpaying}
+                  className="h-12 w-full rounded-xl bg-indigo-600 px-8 font-bold text-white hover:bg-indigo-500 disabled:bg-slate-400 sm:w-auto"
+                >
+                  Continue to checkout <ArrowRight className="ml-2 h-4 w-4" />
+                </Button>
+              </section>
+            </aside>
           </div>
         </div>
-      </div>
+      </main>
     </>
   );
 }

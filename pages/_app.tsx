@@ -125,7 +125,7 @@ function MyApp({ Component, pageProps }: AppProps) {
   if (loading && !isPublicRoute) {
     return (
       <div className="flex h-screen items-center justify-center">
-        <Loader />
+        <Loader fullScreen />
       </div>
     )
   }

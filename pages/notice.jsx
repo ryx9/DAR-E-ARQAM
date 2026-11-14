@@ -207,7 +207,6 @@ export default function BulkMessagePage() {
   const [filterClear, setFilterClear] = useState('all');
   const [students, setStudents] = useState([]);
   const [selectedIds, setSelectedIds] = useState(new Set());
-  const [selectAll, setSelectAll] = useState(false);
   const [message, setMessage] = useState('');
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -271,7 +270,7 @@ export default function BulkMessagePage() {
     supabase
       .from('classes')
       .select('id, name')
-      .order('name', { ascending: true })
+      .order('id', { ascending: true })
       .then(({ data, error }) => {
         if (error) console.error('Classes fetch error', error);
         else setClasses(data || []);
@@ -280,12 +279,11 @@ export default function BulkMessagePage() {
 
   useEffect(() => {
     if (!router.isReady) return;
+    let cancelled = false;
 
     const fetchStudents = async () => {
       setLoading(true);
       setStudents([]);
-      setSelectedIds(new Set());
-      setSelectAll(false);
 
       try {
         if (urlStudentId) {
@@ -299,9 +297,7 @@ export default function BulkMessagePage() {
 
           if (data && data.length > 0) {
             const formatted = data.map(s => ({ ...s, class: s.classes?.name || '' }));
-            setStudents(formatted);
-            setSelectedIds(new Set([formatted[0].studentid]));
-            setSelectedClasses([String(formatted[0].class_id)]);
+            if (!cancelled) { setStudents(formatted); setSelectedIds(new Set([formatted[0].studentid])); }
           }
         } else if (selectedClasses.length > 0) {
           const { data, error } = await supabase
@@ -313,18 +309,24 @@ export default function BulkMessagePage() {
           if (error) throw error;
 
           const withClass = (data || []).map(s => ({ ...s, class: s.classes?.name || '' }));
-          setStudents(withClass);
+          if (!cancelled) {
+            setStudents(withClass);
+            const available = new Set(withClass.map(s => s.studentid));
+            setSelectedIds(previous => new Set([...previous].filter(id => available.has(id))));
+          }
+        } else if (!cancelled) {
+          setSelectedIds(new Set());
         }
       } catch (error) {
         console.error('Error fetching students:', error);
-        setStudents([]);
-        showToast('Failed to load students. Check your connection.', 'error');
+        if (!cancelled) { setStudents([]); showToast('Failed to load students. Check your connection.', 'error'); }
       } finally {
-        setLoading(false);
+        if (!cancelled) setLoading(false);
       }
     };
 
     fetchStudents();
+    return () => { cancelled = true; };
   }, [selectedClasses, urlStudentId, router.isReady]);
 
   const filtered = useMemo(() => {
@@ -349,26 +351,23 @@ export default function BulkMessagePage() {
       const next = new Set(prev);
       if (next.has(studentid)) next.delete(studentid);
       else next.add(studentid);
-      setSelectAll(next.size === filtered.length && filtered.length > 0);
       return next;
     });
   };
 
   const toggleSelectAll = () => {
-    if (selectAll) {
-      setSelectedIds(new Set());
-      setSelectAll(false);
-    } else {
-      setSelectedIds(new Set(filtered.map(s => s.studentid)));
-      setSelectAll(true);
-    }
+    setSelectedIds(prev => {
+      const next = new Set(prev);
+      const allVisible = filtered.length > 0 && filtered.every(s => next.has(s.studentid));
+      filtered.forEach(s => allVisible ? next.delete(s.studentid) : next.add(s.studentid));
+      return next;
+    });
   };
 
   const invertSelection = () => {
     setSelectedIds(prev => {
-      const next = new Set();
-      filtered.forEach(s => { if (!prev.has(s.studentid)) next.add(s.studentid); });
-      setSelectAll(next.size === filtered.length && filtered.length > 0);
+      const next = new Set(prev);
+      filtered.forEach(s => { if (next.has(s.studentid)) next.delete(s.studentid); else next.add(s.studentid); });
       return next;
     });
   };
@@ -545,7 +544,6 @@ export default function BulkMessagePage() {
 
         if (!urlStudentId) {
           setSelectedIds(new Set());
-          setSelectAll(false);
         }
       }
     } catch (err) {
@@ -558,7 +556,6 @@ export default function BulkMessagePage() {
 
   const handleReset = () => {
     setSelectedIds(new Set());
-    setSelectAll(false);
     setMessage('');
     setScheduleEnabled(false);
   };
@@ -583,39 +580,32 @@ export default function BulkMessagePage() {
         .animate-slide-up { animation: slide-up 0.2s ease-out; }
       `}</style>
 
-      <main className="container mx-auto max-w-7xl p-4 md:p-6 space-y-6">
+      <main className="container mx-auto max-w-7xl p-4 md:p-6 space-y-5 text-slate-900 dark:text-slate-100">
 
         {/* Header */}
-        <div>
-          <h1 className="text-3xl font-bold tracking-tight">Bulk Messaging</h1>
-          <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
-            Select classes, compose a message, and send or schedule broadcasts.
-          </p>
+        <div className="rounded-2xl border border-indigo-100 bg-indigo-50 px-5 py-5 dark:border-indigo-500/20 dark:bg-indigo-500/10 md:px-7">
+          <div className="flex items-center gap-3"><div className="flex h-11 w-11 items-center justify-center rounded-xl bg-indigo-600 text-white"><Send className="h-5 w-5" /></div><div><h1 className="text-2xl font-bold tracking-tight md:text-3xl">Send a notice</h1><p className="mt-1 text-sm text-slate-600 dark:text-slate-400">Choose recipients, write your message, and send it now or schedule it.</p></div></div>
         </div>
 
         {/* Filter Bar */}
-        <div className="bg-white dark:bg-white/5 backdrop-blur-xl border border-gray-200 dark:border-white/10 rounded-xl p-4 shadow-sm">
+        <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-4 sm:p-6 shadow-sm">
+          <div className="mb-5 flex items-start gap-3"><span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-indigo-100 text-sm font-bold text-indigo-700 dark:bg-indigo-500/20 dark:text-indigo-300">1</span><div><h2 className="font-bold">Choose your audience</h2><p className="text-sm text-slate-500 mt-1">Select classes, then choose the students to receive this notice.</p></div></div>
           <div className="grid grid-cols-1 md:grid-cols-12 gap-4">
 
             {(!urlClassId && !urlStudentId) && (
-              <div className="md:col-span-4 flex flex-col">
-                <div className="flex items-center justify-between mb-1.5">
-                  <label className="text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400">Select Class(es)</label>
-                  {selectedClasses.length > 0 && (
-                    <button
-                      onClick={() => setSelectedClasses([])}
-                      className="text-[10px] text-blue-500 hover:text-blue-600 dark:text-blue-400 transition-colors"
-                    >
-                      Clear All
-                    </button>
-                  )}
+              <div className="md:col-span-12 flex flex-col">
+                <div className="flex flex-wrap items-center justify-between gap-3 mb-3">
+                  <div><h3 className="text-sm font-bold">Classes <span className="ml-1 font-normal text-slate-500">{selectedClasses.length} selected</span></h3><p className="mt-1 text-xs text-slate-500">Select one or more classes to load their students.</p></div>
+                  <div className="flex gap-2"><button type="button" onClick={() => setSelectedClasses(classes.map(c => String(c.id)))} disabled={!classes.length} className="rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold text-indigo-600 hover:bg-indigo-50 dark:border-slate-700 dark:text-indigo-300 dark:hover:bg-slate-800">Select all</button><button type="button" onClick={() => setSelectedClasses([])} disabled={!selectedClasses.length} className="rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-50 disabled:opacity-40 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800">Clear</button></div>
                 </div>
-                <div className="flex flex-wrap gap-1.5 max-h-[85px] overflow-y-auto p-2 border border-gray-200 dark:border-white/10 rounded-md bg-gray-50 dark:bg-white/5 scrollbar-thin">
+                <div className="grid grid-cols-2 gap-2 rounded-xl bg-slate-50 p-3 dark:bg-slate-950/50 sm:grid-cols-3 lg:grid-cols-5">
                   {classes.map(c => {
                     const isSelected = selectedClasses.includes(String(c.id));
                     return (
                       <button
                         key={c.id}
+                        type="button"
+                        aria-pressed={isSelected}
                         onClick={() => {
                           setSelectedClasses(prev =>
                             prev.includes(String(c.id))
@@ -623,11 +613,12 @@ export default function BulkMessagePage() {
                               : [...prev, String(c.id)]
                           );
                         }}
-                        className={`px-3 py-1 text-xs font-medium rounded-full border transition-all ${isSelected
-                          ? 'bg-blue-600 text-white border-blue-600 shadow-sm'
-                          : 'bg-white dark:bg-slate-800 text-gray-600 dark:text-gray-300 border-gray-200 dark:border-gray-700 hover:border-blue-400'
+                        className={`flex min-h-11 items-center gap-2 rounded-xl border px-3 py-2 text-left text-sm font-semibold transition-all ${isSelected
+                          ? 'bg-indigo-50 text-indigo-700 border-indigo-400 dark:bg-indigo-500/15 dark:text-indigo-200 dark:border-indigo-400'
+                          : 'bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 border-slate-200 dark:border-slate-700 hover:border-indigo-400'
                           }`}
                       >
+                        {isSelected ? <CheckSquare className="h-4 w-4 shrink-0" /> : <Square className="h-4 w-4 shrink-0 text-slate-400" />}
                         {c.name}
                       </button>
                     );
@@ -639,7 +630,7 @@ export default function BulkMessagePage() {
 
             {!urlStudentId && (
               <>
-                <div className={`${urlClassId ? 'md:col-span-4' : 'md:col-span-3'}`}>
+                <div className="md:col-span-4">
                   <label className="text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400 mb-1.5 block">Status</label>
                   <Select value={filterClear} onValueChange={setFilterClear}>
                     <SelectTrigger className="w-full bg-gray-50 dark:bg-white/5 border-gray-200 dark:border-white/10">
@@ -652,7 +643,7 @@ export default function BulkMessagePage() {
                     </SelectContent>
                   </Select>
                 </div>
-                <div className={`${urlClassId ? 'md:col-span-8' : 'md:col-span-5'}`}>
+                <div className="md:col-span-8">
                   <label className="text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400 mb-1.5 block">Search</label>
                   <div className="relative">
                     <Search className="absolute left-3 top-2.5 h-4 w-4 text-gray-400" />
@@ -679,17 +670,17 @@ export default function BulkMessagePage() {
           </div>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-12 gap-6">
+        <div className="grid grid-cols-1 items-start lg:grid-cols-2 gap-5">
 
           {/* Left Col: Student List */}
-          <div className="md:col-span-7 flex flex-col">
-            <div className="bg-white dark:bg-white/5 backdrop-blur-xl border border-gray-200 dark:border-white/10 rounded-xl shadow-sm flex-1 flex flex-col overflow-hidden h-[500px] md:h-[600px]">
+          <div className="order-2 min-w-0 flex flex-col lg:order-1">
+            <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-sm flex-1 flex flex-col overflow-hidden h-[400px] md:h-[600px]">
 
               <div className="p-4 border-b border-gray-100 dark:border-white/5 flex flex-wrap gap-2 items-center justify-between bg-gray-50/50 dark:bg-white/[0.02]">
                 <div className="flex items-center gap-2">
                   <Users className="w-4 h-4 text-blue-500" />
                   <span className="font-semibold text-sm">
-                    {loading ? 'Loading...' : `${filtered.length} Students`}
+                    {loading ? 'Loading...' : <><span className="lg:hidden">3</span><span className="hidden lg:inline">2</span>. Select recipients · {filtered.length} students</>}
                   </span>
                   {selectedIds.size > 0 && (
                     <span className="text-xs bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300 px-2 py-0.5 rounded-full font-medium">
@@ -706,8 +697,8 @@ export default function BulkMessagePage() {
                       disabled={!students.length}
                       className="h-8 text-xs border-gray-200 dark:border-white/10"
                     >
-                      {selectAll ? <CheckSquare className="w-3 h-3 mr-1" /> : <Square className="w-3 h-3 mr-1" />}
-                      {selectAll ? 'Unselect All' : 'Select All'}
+                      {filtered.length > 0 && filtered.every(s => selectedIds.has(s.studentid)) ? <CheckSquare className="w-3 h-3 mr-1" /> : <Square className="w-3 h-3 mr-1" />}
+                      {filtered.length > 0 && filtered.every(s => selectedIds.has(s.studentid)) ? 'Clear shown' : 'Select shown'}
                     </Button>
                     <Button
                       variant="outline"
@@ -743,8 +734,12 @@ export default function BulkMessagePage() {
                     return (
                       <li
                         key={s.studentid}
+                        role="checkbox"
+                        aria-checked={checked}
+                        tabIndex={0}
                         onClick={() => toggleSelect(s.studentid)}
-                        className={`group flex items-center gap-3 p-2.5 cursor-pointer transition-colors hover:bg-gray-50 dark:hover:bg-white/5 ${checked ? 'bg-blue-50/50 dark:bg-blue-900/10' : ''}`}
+                        onKeyDown={e => { if (e.key === ' ' || e.key === 'Enter') { e.preventDefault(); toggleSelect(s.studentid); } }}
+                        className={`group flex items-center gap-3 px-4 py-3 cursor-pointer transition-colors hover:bg-gray-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-indigo-500 dark:hover:bg-white/5 ${checked ? 'bg-blue-50/50 dark:bg-blue-900/10' : ''}`}
                       >
                         <div className={`w-4 h-4 rounded border flex items-center justify-center transition-colors flex-shrink-0 ${checked ? 'bg-blue-600 border-blue-600 text-white' : 'border-gray-300 dark:border-gray-600 text-transparent'}`}>
                           <CheckSquare className="w-3 h-3" />
@@ -780,8 +775,9 @@ export default function BulkMessagePage() {
           </div>
 
           {/* Right Col: Message Composer */}
-          <div className="md:col-span-5 flex flex-col">
-            <div className="bg-white dark:bg-white/5 backdrop-blur-xl border border-gray-200 dark:border-white/10 rounded-xl shadow-sm p-5 h-auto min-h-[500px] md:h-[600px] flex flex-col relative overflow-hidden">
+          <div className="order-1 min-w-0 flex flex-col lg:order-2 lg:sticky lg:top-24">
+            <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-sm p-5 h-auto min-h-[500px] md:min-h-[600px] flex flex-col relative">
+              <div className="mb-4 border-b border-slate-100 pb-4 dark:border-slate-800"><h2 className="font-bold"><span className="lg:hidden">2</span><span className="hidden lg:inline">3</span>. Compose and send</h2><p className="mt-1 text-sm text-slate-500">Write a notice for {selectedIds.size} selected student{selectedIds.size === 1 ? '' : 's'}, then send or schedule it.</p></div>
 
               {/* AI Assistant */}
               <div className="mb-4">
@@ -793,7 +789,7 @@ export default function BulkMessagePage() {
                 <button
                   onClick={handleSmartDraft}
                   disabled={isDrafting || !message}
-                  className="w-full flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-500 text-white p-3 rounded-lg shadow-md transition-all font-medium disabled:opacity-70 disabled:cursor-not-allowed group"
+                  className="w-full flex items-center justify-center gap-2 border border-indigo-200 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 dark:border-indigo-500/20 dark:bg-indigo-500/10 dark:hover:bg-indigo-500/20 dark:text-indigo-300 p-3 rounded-xl transition-all font-semibold disabled:opacity-50 disabled:cursor-not-allowed group"
                 >
                   {isDrafting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4 group-hover:scale-110 transition-transform" />}
                   {isDrafting ? 'Drafting Professional Message...' : 'Generate Professional Message with AI'}
@@ -897,7 +893,7 @@ export default function BulkMessagePage() {
                           <div className="flex items-start gap-2 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-3">
                             <Info className="w-3.5 h-3.5 text-blue-500 flex-shrink-0 mt-0.5" />
                             <p className="text-xs text-blue-700 dark:text-blue-300 leading-relaxed">
-                              Messages will be queued with <code className="font-mono bg-blue-100 dark:bg-blue-900/40 px-1 rounded">created_at</code> set to <strong>{scheduleSummary}</strong> (PKT). Your SMS service picks them up at that time.
+                              Messages are scheduled for <strong>{scheduleSummary}</strong> (Pakistan time).
                             </p>
                           </div>
                         )}

@@ -157,7 +157,7 @@ export default function AdminDashboard() {
     }
   ]
 
-  if (isLoading && !stats.totalStudents) return <Loader />
+  if (isLoading && !stats.totalStudents) return <Loader fullScreen />
 
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-slate-950 transition-colors duration-500 font-sans selection:bg-indigo-500/30">

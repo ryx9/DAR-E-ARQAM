@@ -21,7 +21,7 @@ export default function ReportsPage() {
   
   // --- States ---
   const [loading, setLoading] = useState(false)
-  const [reportType, setReportType] = useState("collection") // "collection" | "defaulter" | "feesummary" | "studentslist"
+  const [reportType, setReportType] = useState("collection") // "collection" | "defaulter" | "statement" | "feesummary" | "studentslist"
   
   // Date Range State
   const [dateRange, setDateRange] = useState({
@@ -42,6 +42,11 @@ export default function ReportsPage() {
     // IF STUDENTS LIST: Simple redirect
     if (reportType === "studentslist") {
       router.push(`/admin/studentslist`)
+      return;
+    }
+
+    if (reportType === "statement") {
+      router.push(`/admin/student-statement`)
       return;
     }
 
@@ -108,6 +113,13 @@ export default function ReportsPage() {
       themeColor = "purple";
       buttonText = "Go to Students List";
       break;
+    case "statement":
+      title = "Student Fee Statement";
+      description = "Create a detailed monthly invoice and payment statement for selected students.";
+      BgIcon = FileText;
+      themeColor = "blue";
+      buttonText = "Open Statement Builder";
+      break;
     case "collection":
     default:
       title = "Collection Report";
@@ -173,6 +185,7 @@ export default function ReportsPage() {
                 >
                   <option value="collection" className="text-black dark:text-white dark:bg-slate-800">Collection Report</option>
                   <option value="defaulter" className="text-black dark:text-white dark:bg-slate-800">Defaulter List</option>
+                  <option value="statement" className="text-black dark:text-white dark:bg-slate-800">Student Fee Statement</option>
                   <option value="feesummary" className="text-black dark:text-white dark:bg-slate-800">Fee Summary & Average</option>
                   <option value="studentslist" className="text-black dark:text-white dark:bg-slate-800">Students List / Award Sheet</option>
                 </select>
