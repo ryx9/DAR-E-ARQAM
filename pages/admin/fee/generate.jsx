@@ -14,6 +14,11 @@ import {
 } from "lucide-react"
 import { useToast } from "../../../hooks/use-toast"
 
+const todayLocal = () => {
+  const now = new Date()
+  return new Date(now.getTime() - now.getTimezoneOffset() * 60000).toISOString().slice(0, 10)
+}
+
 export default function GenerateInvoicesContent() {
   const router = useRouter()
   const { toast } = useToast()
@@ -34,14 +39,14 @@ export default function GenerateInvoicesContent() {
   const [studentFees, setStudentFees] = useState({})
 
   // Configuration
-  const [invoiceDate, setInvoiceDate] = useState(new Date().toISOString().split('T')[0])
+  const [invoiceDate, setInvoiceDate] = useState(todayLocal)
   const [config, setConfig] = useState({
     feeLabel: "",
     annualCharges: 0,
     stationeryCharges: 0,
     customFeeLabel: "",
     customFeeDefault: 0,
-    dueDate: new Date().toISOString().split('T')[0]
+    dueDate: `${todayLocal().slice(0, 7)}-10`
   })
 
   // Messaging State
@@ -460,7 +465,13 @@ export default function GenerateInvoicesContent() {
 
               <div className="lg:col-span-1">
                 <Label className="text-xs text-gray-500 font-semibold uppercase mb-1">Invoice Date</Label>
-                <Input type="date" value={invoiceDate} onChange={(e) => setInvoiceDate(e.target.value)} />
+                <Input type="date" value={invoiceDate} onChange={(e) => {
+                  const nextDate = e.target.value
+                  if (nextDate && nextDate.slice(0, 7) !== invoiceDate.slice(0, 7)) {
+                    setConfig(prev => ({ ...prev, dueDate: `${nextDate.slice(0, 7)}-10` }))
+                  }
+                  setInvoiceDate(nextDate)
+                }} />
               </div>
 
               <div className="lg:col-span-1">

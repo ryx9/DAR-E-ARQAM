@@ -23,6 +23,10 @@ import {
   Power,
   Zap,
   BarChart2,
+  FilePlus,
+  Banknote,
+  HelpCircle,
+  MessageSquareWarning,
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import { supabase } from '../utils/supabaseClient';
@@ -94,15 +98,27 @@ const NAV_LINKS: NavItem[] = [
   { href: '/mycomplaint', label: 'Complaints', icon: ShieldAlert, hue: 347 },
 ];
 
-const ADMIN_LINKS: NavItem[] = [
+const ADMIN_OVERVIEW: NavItem[] = [
   { href: '/admin', label: 'Admin Overview', icon: LayoutGrid, hue: 217 },
-  { href: '/admin/invoices', label: 'Invoices', icon: FileText, hue: 173 },
-  { href: '/admin/crud', label: 'Manage Students', icon: Users, hue: 239 },
 ];
 
-const SUPERADMIN_LINKS: NavItem[] = [
+const ADMIN_FEES: NavItem[] = [
+  { href: '/admin/fee/generate', label: 'Generate Fee', icon: FilePlus, hue: 160 },
+  { href: '/admin/receipts', label: 'Fee Receipts', icon: Wallet, hue: 142 },
+  { href: '/admin/invoices', label: 'All Invoices', icon: FileText, hue: 173 },
   { href: '/admin/report', label: 'Fee Reports', icon: BarChart2, hue: 188 },
+];
+
+const ADMIN_STUDENTS: NavItem[] = [
+  { href: '/admin/managestudent', label: 'Admissions', icon: FileText, hue: 217 },
+  { href: '/admin/crud', label: 'Student Records', icon: Users, hue: 239 },
+  { href: '/admin/inquiries', label: 'Inquiries', icon: HelpCircle, hue: 40 },
+];
+
+const ADMIN_OPERATIONS: NavItem[] = [
   { href: '/admin/profiles', label: 'Manage Teachers', icon: UserCheck, hue: 262 },
+  { href: '/admin/advances', label: 'Staff Advances', icon: Banknote, hue: 275 },
+  { href: '/admin/complaint', label: 'Manage Complaints', icon: MessageSquareWarning, hue: 347 },
 ];
 
 const DESKTOP_LINKS = [
@@ -111,8 +127,8 @@ const DESKTOP_LINKS = [
   { href: '/reports', label: 'Reports', roles: ['admin', 'superadmin', 'teacher', 'user'] },
   { href: '/marks', label: 'Tests', roles: ['admin', 'superadmin', 'teacher', 'user'] },
   { href: '/dashboard', label: 'Classes', roles: ['admin', 'superadmin', 'teacher', 'user'] },
-  { href: '/admin/report', label: 'Fee Reports', roles: ['superadmin'] },
-  { href: '/admin/profiles', label: 'Manage Teachers', roles: ['superadmin'] },
+  { href: '/admin/report', label: 'Fee Reports', roles: ['admin', 'superadmin'] },
+  { href: '/admin/profiles', label: 'Manage Teachers', roles: ['admin', 'superadmin'] },
 ];
 
 const ROLE_LABELS: Record<string, string> = {
@@ -190,7 +206,6 @@ const Navbar = () => {
   }, [isOpen]);
 
   const isAdmin = userRole === 'admin' || userRole === 'superadmin';
-  const adminItems = [...ADMIN_LINKS, ...(userRole === 'superadmin' ? SUPERADMIN_LINKS : [])];
   const roleLabel = userRole ? ROLE_LABELS[userRole] ?? userRole : null;
 
   const isActive = (href: string) => {
@@ -443,8 +458,13 @@ const Navbar = () => {
           </Link>
 
           {/* Navigation */}
-          {renderSection('Academic and utilities', NAV_LINKS)}
-          {isAdmin && renderSection('Administration', adminItems)}
+          {isLoggedIn && renderSection('Academic and utilities', NAV_LINKS)}
+          {isLoggedIn && isAdmin && <>
+            {renderSection('Administration', ADMIN_OVERVIEW)}
+            {renderSection('Fee management', ADMIN_FEES)}
+            {renderSection('Students', ADMIN_STUDENTS)}
+            {renderSection('Operations and HR', ADMIN_OPERATIONS)}
+          </>}
         </div>
       </div>
 

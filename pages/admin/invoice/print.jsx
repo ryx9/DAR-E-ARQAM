@@ -30,7 +30,7 @@ const COLORS = {
 
 // --- HELPER: FORMAT CURRENCY ---
 const formatCurrency = (amount) => {
-  return new Intl.NumberFormat('en-PK', { style: 'decimal', minimumFractionDigits: 0 }).format(amount || 0)
+  return new Intl.NumberFormat('en-PK', { style: 'decimal', minimumFractionDigits: 0, maximumFractionDigits: 2 }).format(amount || 0)
 }
 
 // --- HELPER: LOAD IMAGE TO BASE64 FOR JSPDF ---
@@ -77,6 +77,9 @@ function PrintInvoicesContent() {
       if (cleanedIds && cleanedIds.trim() !== "") {
         const ids = cleanedIds.split(',').filter(id => id.trim() !== '')
         fetchAndAutoPrint(ids)
+      } else {
+        setAutoPrintMode(false)
+        fetchClasses()
       }
     } else {
       fetchClasses()
@@ -96,11 +99,35 @@ function PrintInvoicesContent() {
     
     if (data && data.length > 0) {
       setInvoices(data)
-      setTimeout(() => generatePDF(data, true), 500) 
+      await generatePDF(data)
     } else {
       toast({ title: "No invoices found", variant: "destructive" })
       setAutoPrintMode(false) 
     }
+  }
+
+  // Fetch payments separately so reprints include all payments on each invoice,
+  // including payment records beyond the server's default row limit.
+  const attachInvoicePayments = async (invoices) => {
+    const totals = new Map()
+    const ids = invoices.map(invoice => invoice.id)
+    for (let i = 0; i < ids.length; i += 150) {
+      const chunk = ids.slice(i, i + 150)
+      let offset = 0
+      while (true) {
+        const { data, error } = await supabase.from('fee_payments')
+          .select('id, invoice_id, amount').in('invoice_id', chunk)
+          .order('id', { ascending: true }).range(offset, offset + 999)
+        if (error) throw error
+        for (const payment of data || []) {
+          const key = String(payment.invoice_id)
+          totals.set(key, (totals.get(key) || 0) + (Number(payment.amount) || 0))
+        }
+        if (!data || data.length < 1000) break
+        offset += 1000
+      }
+    }
+    return invoices.map(invoice => ({ ...invoice, paidOnInvoice: totals.get(String(invoice.id)) || 0 }))
   }
 
   const fetchInvoicesByIds = async (ids) => {
@@ -118,7 +145,7 @@ function PrintInvoicesContent() {
         .in('id', ids)
 
       if (error) throw error
-      return data || []
+      return await attachInvoicePayments(data || [])
     } catch (error) {
       console.error(error)
       return []
@@ -156,7 +183,7 @@ function PrintInvoicesContent() {
         .neq("status", "expired")
 
       if (error) throw error
-      setInvoices(data || [])
+      setInvoices(await attachInvoicePayments(data || []))
       
     } catch (error) {
       console.error(error)
@@ -167,7 +194,7 @@ function PrintInvoicesContent() {
   }
 
   // --- 3. HEAVY CORPORATE DESIGN PDF GENERATOR ---
-  const generatePDF = async (dataToPrint = invoices, autoClose = false) => {
+  const generatePDF = async (dataToPrint = invoices) => {
     if (!dataToPrint || dataToPrint.length === 0) return
 
     setProcessingPdf(true)
@@ -277,13 +304,18 @@ function PrintInvoicesContent() {
             }
           })
 
-          // --- 5. FEE TABLE (Professional Ledger Look) ---
-          const feeData = inv.fee_invoice_details.map(d => [d.fee_type, formatCurrency(d.amount)])
-          feeData.push(["TOTAL PAYABLE", formatCurrency(inv.total_amount)])
+          // Charges and payments are shown separately so a receipt cannot be
+          // mistaken for an additional fee item.
+          const invoiceTotal = Number(inv.total_amount) || 0
+          const paidOnInvoice = Number(inv.paidOnInvoice) || 0
+          const remaining = invoiceTotal - paidOnInvoice
+          const feeData = (inv.fee_invoice_details || []).map(d => [d.fee_type, formatCurrency(d.amount)])
+          if (!feeData.length) feeData.push(['No fee items recorded', '-'])
+          feeData.push(['INVOICE TOTAL', formatCurrency(invoiceTotal)])
 
           autoTable(doc, {
             startY: doc.lastAutoTable.finalY + 5,
-            head: [['DESCRIPTION', 'AMOUNT']],
+            head: [['INVOICE CHARGES', 'PKR']],
             body: feeData,
             theme: 'grid',
             margin: { left: startX + 6 },
@@ -292,14 +324,14 @@ function PrintInvoicesContent() {
               fillColor: COLORS.brand, 
               textColor: COLORS.white, 
               fontStyle: 'bold', 
-              fontSize: 10, 
+              fontSize: 8,
               halign: 'left', 
-              cellPadding: 2.5 
+              cellPadding: 1.5
             },
             bodyStyles: { 
-              fontSize: 11, 
+              fontSize: 8,
               textColor: COLORS.text, 
-              cellPadding: 2, 
+              cellPadding: 1.3,
               lineColor: COLORS.border, 
               lineWidth: 0.2 
             },
@@ -310,22 +342,38 @@ function PrintInvoicesContent() {
               0: { cellWidth: 'auto' },
               1: { halign: 'right', cellWidth: 22 }
             },
-            didParseCell: (data) => {
-              // Apply specific styles to Total Row
+            didParseCell: data => {
               if (data.section === 'body' && data.row.index === feeData.length - 1) {
-                data.cell.styles.fillColor = COLORS.total_bg
+                data.cell.styles.fillColor = [224, 231, 239]
+                data.cell.styles.fontStyle = 'bold'
+                data.cell.styles.textColor = COLORS.brand
+              }
+            }
+          })
+
+          autoTable(doc, {
+            startY: doc.lastAutoTable.finalY + 3,
+            head: [['PAYMENT SUMMARY', 'PKR']],
+            body: [
+              ['Payments made against this invoice', `- ${formatCurrency(paidOnInvoice)}`],
+              [remaining < 0 ? 'CREDIT ON THIS INVOICE' : 'AMOUNT REMAINING', formatCurrency(Math.abs(remaining))],
+            ],
+            theme: 'grid',
+            margin: { left: startX + 6 },
+            tableWidth: innerBoxW - 8,
+            headStyles: { fillColor: [235, 238, 244], textColor: [31, 41, 55], fontStyle: 'bold', fontSize: 8, cellPadding: 1.5 },
+            bodyStyles: { fontSize: 8, textColor: COLORS.text, cellPadding: 1.3, lineColor: COLORS.border, lineWidth: 0.2 },
+            columnStyles: { 0: { cellWidth: 'auto' }, 1: { halign: 'right', cellWidth: 22 } },
+            didParseCell: data => {
+              if (data.section === 'body' && data.row.index === 0) {
+                data.cell.styles.textColor = [21, 101, 76]
+              }
+              if (data.section === 'body' && data.row.index === 1) {
+                data.cell.styles.fillColor = [224, 231, 239]
                 data.cell.styles.fontStyle = 'bold'
                 data.cell.styles.textColor = COLORS.brand
               }
             },
-            didDrawCell: (data) => {
-              // Thick line above the total row
-              if (data.section === 'body' && data.row.index === feeData.length - 1 && data.row.raw) {
-                doc.setDrawColor(COLORS.brand)
-                doc.setLineWidth(0.53)
-                doc.line(data.cell.x, data.cell.y, data.cell.x + data.cell.width, data.cell.y)
-              }
-            }
           })
 
           // --- 6. FOOTER (Split Layout) ---
@@ -392,15 +440,16 @@ function PrintInvoicesContent() {
 
       // --- OUTPUT ---
       const pdfBlobUrl = doc.output('bloburl')
-      window.open(pdfBlobUrl, '_blank')
-      
-      if (autoClose && autoPrintMode) {
-         // router.push('/dashboard') 
-      }
+      const opened = window.open(pdfBlobUrl, '_blank')
+      if (!opened) throw new Error('The PDF window was blocked. Allow pop-ups and try again.')
+      setAutoPrintMode(false)
+      if (window.history.length > 1) router.back()
+      else router.replace('/admin/invoices')
       
     } catch (e) {
       console.error(e)
-      toast({ title: "PDF Generation Failed", variant: "destructive" })
+      setAutoPrintMode(false)
+      toast({ title: "PDF Generation Failed", description: e.message, variant: "destructive" })
     } finally {
       setProcessingPdf(false)
     }

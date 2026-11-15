@@ -15,6 +15,16 @@ import {
 } from "lucide-react"
 import { useToast } from "../../hooks/use-toast"
 
+const todayLocal = () => {
+  const now = new Date()
+  return new Date(now.getTime() - now.getTimezoneOffset() * 60000).toISOString().slice(0, 10)
+}
+const feeLabelForDate = date => {
+  if (!date) return ''
+  const [year, month] = date.split('-').map(Number)
+  return `Tuition Fee - ${new Date(year, month - 1, 1).toLocaleString('en-US', { month: 'long' })} - ${year}`
+}
+
 function ManageStudentContent() {
   const router = useRouter()
   const searchParams = useSearchParams()
@@ -50,6 +60,9 @@ function ManageStudentContent() {
 
   // Invoice State (Always active for new admissions now)
   const [invoiceData, setInvoiceData] = useState({
+    invoiceDate: todayLocal(),
+    dueDate: `${todayLocal().slice(0, 7)}-10`,
+    feeLabel: feeLabelForDate(todayLocal()),
     admission_fee: 0,
     annual_charges: 0,
     stationery_charges: 0,
@@ -123,7 +136,21 @@ function ManageStudentContent() {
     }))
     setShowInquirySearch(false)
     setInquirySearch("")
-    toast({ title: "Data imported! Please assign a Student ID.", variant: "default" })
+    toast({ title: "Data imported", variant: "default" })
+  }
+
+  const nextStudentId = async () => {
+    let offset = 0, highest = 0
+    while (true) {
+      const { data, error } = await supabase.from('students').select('studentid').order('studentid', { ascending: true }).range(offset, offset + 999)
+      if (error) throw error
+      for (const row of data || []) {
+        const value = String(row.studentid ?? '')
+        if (/^\d+$/.test(value)) highest = Math.max(highest, Number(value))
+      }
+      if (!data || data.length < 1000) return highest + 1
+      offset += 1000
+    }
   }
 
   // --- Submit Logic ---
@@ -133,9 +160,9 @@ function ManageStudentContent() {
 
     try {
       // Validation
-      if (!formData.studentid) throw new Error("Student ID is required.")
       if (!formData.name) throw new Error("Student Name is required.")
       if (!formData.class_id) throw new Error("Class is required.")
+      if (!isEditing && (!invoiceData.invoiceDate || !invoiceData.dueDate || !invoiceData.feeLabel.trim())) throw new Error('Invoice Date, Due Date and Main Fee Label are required.')
 
       // 1. Insert / Update Student
       if (isEditing) {
@@ -159,19 +186,17 @@ function ManageStudentContent() {
 
       } else {
         // --- ADD MODE (With Mandatory Invoice) ---
-        const { error } = await supabase
-          .from("students")
-          .insert([{ 
-            studentid: formData.studentid,
-            ...formData, 
-            Clear: false,
-            status:"invoice_generated"
-          }])
-
-        if (error) {
-          if (error.code === '23505') throw new Error(`Student ID ${formData.studentid} already exists!`)
-          throw error
+        let assignedId
+        for (let attempt = 0; attempt < 3; attempt++) {
+          const candidate = await nextStudentId()
+          const { error } = await supabase.from("students").insert([{ ...formData, studentid: candidate, Clear: false, status: "invoice_generated" }])
+          if (!error) { assignedId = candidate; break }
+          if (error.code !== '23505') throw error
+          const { data: existing, error: lookupError } = await supabase.from('students').select('studentid').eq('studentid', candidate).maybeSingle()
+          if (lookupError) throw lookupError
+          if (!existing) throw error
         }
+        if (assignedId == null) throw new Error('Could not assign a student ID. Please try again.')
 
         toast({ title: "Admission Successful! 🎉" })
 
@@ -190,9 +215,9 @@ function ManageStudentContent() {
         const { data: invData, error: invError } = await supabase
           .from("fee_invoices")
           .insert([{
-            student_id: formData.studentid,
-            invoice_date: new Date().toISOString().split('T')[0],
-            due_date: new Date().toISOString().split('T')[0],
+            student_id: assignedId,
+            invoice_date: invoiceData.invoiceDate,
+            due_date: invoiceData.dueDate,
             total_amount: totalAmount,
             status: "unpaid"
           }])
@@ -207,9 +232,9 @@ function ManageStudentContent() {
           // B. Prepare Detail Rows (fee_invoice_details)
           const detailsPayload = [];
 
-          if (monthly > 0) detailsPayload.push({ invoice_id: invData.id, fee_type: 'Tuition Fee', description: 'First Month Tuition', amount: monthly });
+          if (monthly > 0) detailsPayload.push({ invoice_id: invData.id, fee_type: invoiceData.feeLabel.trim(), description: 'Monthly Tuition Charges', amount: monthly });
           if (admission > 0) detailsPayload.push({ invoice_id: invData.id, fee_type: 'Admission Fee', description: 'New Admission Charges', amount: admission });
-          if (annual > 0) detailsPayload.push({ invoice_id: invData.id, fee_type: 'Annual Funds', description: 'Annual/Paper Funds', amount: annual });
+          if (annual > 0) detailsPayload.push({ invoice_id: invData.id, fee_type: 'Annual Charges', description: 'Annual / Paper Funds', amount: annual });
           if (stationery > 0) detailsPayload.push({ invoice_id: invData.id, fee_type: 'Stationery', description: 'Books/Stationery', amount: stationery });
           if (discount > 0) detailsPayload.push({ invoice_id: invData.id, fee_type: 'Discount', description: 'Admission Discount', amount: -discount });
 
@@ -327,20 +352,18 @@ function ManageStudentContent() {
                 
                 {/* ID INPUT */}
                 <div className="col-span-1 md:col-span-2">
-                    <Label className="text-gray-700 dark:text-gray-300 font-semibold ml-1">Student ID (Roll No) <span className="text-red-500">*</span></Label>
+                    <Label className="text-gray-700 dark:text-gray-300 font-semibold ml-1">Student ID (Roll No)</Label>
                     <div className="relative mt-1.5">
                       <Hash className="absolute left-3 top-2.5 h-4 w-4 text-blue-600 dark:text-blue-400" />
                       <Input 
-                        required 
-                        type="number"
-                        disabled={isEditing} 
-                        value={formData.studentid} 
-                        onChange={e => setFormData({...formData, studentid: e.target.value})} 
-                        className={`pl-10 h-11 text-lg font-bold tracking-wide ${glassInputClass} ${isEditing ? "opacity-60 cursor-not-allowed" : ""}`}
-                        placeholder="e.g. 101" 
+                        type="text"
+                        disabled
+                        value={isEditing ? formData.studentid : ''}
+                        className={`pl-10 h-11 text-lg font-bold tracking-wide ${glassInputClass} opacity-60 cursor-not-allowed`}
+                        placeholder="Assigned automatically on admission"
                       />
                     </div>
-                    {!isEditing && <p className="text-xs text-gray-500 mt-1 ml-1">Assign a unique roll number or ID manually.</p>}
+                    {!isEditing && <p className="text-xs text-gray-500 mt-1 ml-1">The next available student ID is assigned when you save.</p>}
                 </div>
 
                 <div className="space-y-1.5">
@@ -435,31 +458,38 @@ function ManageStudentContent() {
 
             {/* 3. FIRST INVOICE GENERATOR (MANDATORY & ALWAYS VISIBLE) */}
             {!isEditing && (
-              <div className={`${glassCardClass} border-blue-300/50 bg-blue-50/40 dark:bg-white/20`}>
+              <div className={glassCardClass}>
+                <div className="absolute top-0 right-0 p-4 opacity-10 pointer-events-none"><FileText className="w-24 h-24" /></div>
                 <div className="flex items-center justify-between mb-4 relative z-10">
                   <div className="flex items-center gap-3">
-                    <div className="p-2.5 rounded-xl backdrop-blur-md shadow-sm bg-orange-500/20 text-orange-600">
-                      <FileText className="w-6 h-6" />
-                    </div>
+                    <FileText className="w-6 h-6 text-blue-600 dark:text-white" />
                     <div>
-                      <h2 className="text-lg font-bold text-gray-800 dark:text-white">First Invoice Details</h2>
-                      <p className="text-xs text-gray-500 font-medium">Mandatory for new admissions</p>
+                      <h2 className="text-xl font-bold text-gray-800 dark:text-white">First Invoice Details</h2>
+                      <p className="text-xs text-gray-500 dark:text-gray-400 font-medium">Mandatory for new admissions</p>
                     </div>
                   </div>
                 </div>
 
                 <div className="animate-in fade-in slide-in-from-top-4 space-y-5 pt-4 border-t border-gray-200/30 dark:border-white/10 relative z-10">
+                  <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+                    <div><Label htmlFor="admission-invoice-date" className="text-xs font-bold text-gray-500 dark:text-gray-300 uppercase">Invoice Date</Label><Input id="admission-invoice-date" type="date" required className={glassInputClass} value={invoiceData.invoiceDate} onChange={e => {
+                      const next = e.target.value
+                      setInvoiceData(prev => ({ ...prev, invoiceDate: next, ...(next && next.slice(0, 7) !== prev.invoiceDate.slice(0, 7) ? { dueDate: `${next.slice(0, 7)}-10`, feeLabel: feeLabelForDate(next) } : {}) }))
+                    }} /></div>
+                    <div><Label htmlFor="admission-due-date" className="text-xs font-bold text-gray-500 dark:text-gray-300 uppercase">Due Date</Label><Input id="admission-due-date" type="date" required className={glassInputClass} value={invoiceData.dueDate} onChange={e => setInvoiceData(prev => ({ ...prev, dueDate: e.target.value }))} /></div>
+                    <div><Label htmlFor="admission-fee-label" className="text-xs font-bold text-gray-500 dark:text-gray-300 uppercase">Main Fee Label (e.g. Tuition Fee)</Label><Input id="admission-fee-label" required className={glassInputClass} value={invoiceData.feeLabel} onChange={e => setInvoiceData(prev => ({ ...prev, feeLabel: e.target.value }))} /></div>
+                  </div>
                   <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
                     <div className="space-y-1">
-                        <Label className="text-xs font-bold text-gray-500 uppercase">Admission Fee</Label>
+                        <Label className="text-xs font-bold text-gray-500 dark:text-gray-300 uppercase">Admission Fee</Label>
                         <Input type="number" className={glassInputClass} value={invoiceData.admission_fee} onChange={e => setInvoiceData({...invoiceData, admission_fee: e.target.value})} />
                     </div>
                     <div className="space-y-1">
-                        <Label className="text-xs font-bold text-gray-500 uppercase">Annual Charges</Label>
+                        <Label className="text-xs font-bold text-gray-500 dark:text-gray-300 uppercase">Annual Charges</Label>
                         <Input type="number" className={glassInputClass} value={invoiceData.annual_charges} onChange={e => setInvoiceData({...invoiceData, annual_charges: e.target.value})} />
                     </div>
                     <div className="space-y-1">
-                        <Label className="text-xs font-bold text-gray-500 uppercase">Stationery/Books</Label>
+                        <Label className="text-xs font-bold text-gray-500 dark:text-gray-300 uppercase">Stationery/Books</Label>
                         <Input type="number" className={glassInputClass} value={invoiceData.stationery_charges} onChange={e => setInvoiceData({...invoiceData, stationery_charges: e.target.value})} />
                     </div>
                     <div className="space-y-1">

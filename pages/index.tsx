@@ -3,6 +3,7 @@ import React, { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/router";
 import { supabase } from '../utils/supabaseClient';
+import Navbar from '../components/Navbar';
 import { getClassAccess } from '../utils/classAccess';
 import {
   motion,
@@ -24,34 +25,11 @@ import { useToast } from "../hooks/use-toast";
 
 // Icons
 import {
-  Moon, Sun, LayoutGrid, ScrollText, FileSpreadsheet,
+  LayoutGrid, ScrollText, FileSpreadsheet,
   BookOpenCheck, NotebookPen, Sparkles, UserCheck, BellRing,
-  Wallet, ShieldAlert, LogOut, User, ChevronRight, GraduationCap,
+  Wallet, ShieldAlert, User, ChevronRight, GraduationCap,
   Plus, Edit, Trash2, ArrowRight, Layers, Users, Calendar, Bot, Wand2
 } from "lucide-react";
-
-// ----- Types & Hooks -----
-type Theme = "light" | "dark";
-
-const useTheme = () => {
-  const [theme, setThemeState] = useState<Theme>("light");
-  const [mounted, setMounted] = useState(false);
-
-  useEffect(() => {
-    setMounted(true);
-    const stored = (localStorage.getItem("theme") as Theme) || "light";
-    setThemeState(stored);
-    document.documentElement.classList.toggle("dark", stored === "dark");
-  }, []);
-
-  const setTheme = (t: Theme) => {
-    localStorage.setItem("theme", t);
-    setThemeState(t);
-    document.documentElement.classList.toggle("dark", t === "dark");
-  };
-
-  return { theme, setTheme, mounted };
-};
 
 // ----- Config: All Links Restored -----
 const NAV_LINKS = [
@@ -99,7 +77,6 @@ interface Class {
 // ----- Main Component -----
 const DashboardHome = () => {
   // Page A State
-  const { theme, setTheme, mounted } = useTheme();
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [userEmail, setUserEmail] = useState<string>("");
   const [userRole, setUserRole] = useState<string | null>(null); // NEW: Track UserRole
@@ -189,22 +166,6 @@ const DashboardHome = () => {
     }
   };
 
-  const handleSignOut = async () => {
-    setIsLoggedIn(false);
-    setUserEmail("");
-    setUserRole(null);
-
-    if (typeof window !== "undefined") {
-      localStorage.removeItem("sb-tjdepqtouvbwqrakarkh-auth-token");
-      localStorage.removeItem("sb-access-token");
-      localStorage.removeItem("sb-refresh-token");
-      localStorage.removeItem("UserRole"); // Optional: clear role on logout
-    }
-
-    await supabase.auth.signOut();
-    router.push("/login");
-  };
-
   // ----- CRUD Actions -----
   const createClass = async () => {
     if (userRole !== 'admin' && userRole !== 'superadmin') {
@@ -252,53 +213,7 @@ const DashboardHome = () => {
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-slate-950 transition-colors duration-500 font-sans">
 
-      {/* --- TOP NAVIGATION BAR --- */}
-      <header className="sticky top-0 z-50 backdrop-blur-xl bg-white/70 dark:bg-slate-950/70 border-b border-gray-200/50 dark:border-gray-800/50">
-        <div className="container mx-auto px-4 h-16 flex justify-between items-center">
-
-          <Link href="/" className="flex items-center gap-3 group relative select-none">
-            <div className="relative bg-gradient-to-br from-indigo-600 to-violet-600 text-white w-9 h-9 rounded-lg flex items-center justify-center shadow-lg shadow-indigo-500/30 transform group-hover:scale-105 transition-transform duration-300">
-              <span className="font-black text-lg">D</span>
-            </div>
-            <div className="flex flex-col">
-              <span className="font-extrabold text-sm tracking-tight text-slate-900 dark:text-white">
-                DAR-E-ARQAM
-              </span>
-              <span className="text-[9px] font-bold uppercase tracking-[0.2em] text-indigo-500 dark:text-indigo-400">
-                School System
-              </span>
-            </div>
-          </Link>
-
-          <div className="flex items-center gap-3">
-            {mounted && (
-              <button
-                onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
-                className="p-2 rounded-full text-gray-500 hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-gray-800 transition-all hover:rotate-12"
-              >
-                {theme === "dark" ? <Sun size={18} /> : <Moon size={18} />}
-              </button>
-            )}
-
-            {isLoggedIn ? (
-              <button
-                onClick={handleSignOut}
-                className="hidden md:flex items-center gap-2 px-4 py-1.5 rounded-full bg-red-50 text-red-600 hover:bg-red-500 hover:text-white dark:bg-red-500/10 dark:text-red-400 dark:hover:bg-red-900/30 transition-all text-xs font-bold uppercase tracking-wide"
-              >
-                <span>Logout</span>
-                <LogOut size={14} />
-              </button>
-            ) : (
-              <button
-                onClick={() => router.push("/login")}
-                className="px-5 py-1.5 rounded-full bg-indigo-600 text-white text-xs font-bold hover:bg-indigo-700 shadow-lg shadow-indigo-600/20 transition-all"
-              >
-                Sign In
-              </button>
-            )}
-          </div>
-        </div>
-      </header>
+      <Navbar />
 
       {/* --- MAIN CONTENT --- */}
       <main className="container mx-auto px-4 py-6 md:py-10 space-y-8 md:space-y-10">
