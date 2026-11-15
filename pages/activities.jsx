@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState, useTransition } from "react";
 import Link from "next/link"; // Assuming next/link is used based on context
 import { supabase } from "../utils/supabaseClient";
+import { canAccessClass, getClassAccess } from "../utils/classAccess";
 import Navbar from "../components/Navbar";
 import {
   Table,
@@ -102,10 +103,19 @@ export default function ActivitiesTracker() {
 
   async function fetchClasses() {
     setLoading(true);
-    const { data, error } = await supabase
+    const access = await getClassAccess();
+    if (access.role === "teacher" && !access.classIds?.length) {
+      setClasses([]);
+      setLoading(false);
+      return;
+    }
+
+    let query = supabase
       .from("classes")
       .select("id, name")
       .order("id", { ascending: true });
+    if (access.role === "teacher") query = query.in("id", access.classIds || []);
+    const { data, error } = await query;
     if (error) {
       console.error(error);
     } else if (data) {
@@ -116,11 +126,19 @@ export default function ActivitiesTracker() {
 
   async function fetchActivities() {
     setLoading(true);
+    const access = await getClassAccess();
+    if (access.role === "teacher" && !access.classIds?.length) {
+      setRecords([]);
+      setLoading(false);
+      return;
+    }
+
     let query = supabase
       .from("activities")
       .select("id, class_id, subject, description, date, created_at")
       .order("date", { ascending: false });
 
+    if (access.role === "teacher") query = query.in("class_id", access.classIds || []);
     if (startDate) query = query.gte("date", startDate);
     if (endDate) query = query.lte("date", endDate);
 
@@ -135,6 +153,10 @@ export default function ActivitiesTracker() {
     e.preventDefault();
     if (!selectedClass || !selectedSubject || !description.trim()) {
       alert("Please fill all fields");
+      return;
+    }
+    if (!canAccessClass(await getClassAccess(), selectedClass)) {
+      alert("You can only add activities for your assigned classes.");
       return;
     }
 

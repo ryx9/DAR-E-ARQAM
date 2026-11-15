@@ -20,6 +20,7 @@ import {
 } from "lucide-react";
 
 import { supabase } from "../../utils/supabaseClient";
+import { canAccessClass, getClassAccess } from "../../utils/classAccess";
 import Navbar from "../../components/Navbar";
 import Breadcrumbs from "../../components/Breadcrumbs";
 import { Button } from "../../components/ui/button";
@@ -268,7 +269,14 @@ export default function AttendanceReportPage() {
 
   useEffect(() => {
     const fetchClasses = async () => {
-      const { data, error } = await supabase.from("classes").select("id, name");
+      const access = await getClassAccess();
+      if (access.role === "teacher" && !access.classIds?.length) {
+        setClasses([]);
+        return;
+      }
+      let query = supabase.from("classes").select("id, name");
+      if (access.role === "teacher") query = query.in("id", access.classIds || []);
+      const { data, error } = await query;
       if (error) {
         toast({ variant: "destructive", title: "Error", description: error.message });
       } else {
@@ -285,6 +293,9 @@ export default function AttendanceReportPage() {
     }
 
     try {
+      if (!canAccessClass(await getClassAccess(), selectedClassId)) {
+        throw new Error("You can only view attendance for your assigned classes.");
+      }
       setIsLoading(true);
 
       let allData = [];
@@ -368,6 +379,14 @@ export default function AttendanceReportPage() {
 
   const sendReports = async () => {
     if (reportData.length === 0) return;
+    try {
+      if (!canAccessClass(await getClassAccess(), selectedClassId)) {
+        throw new Error("You can only send attendance reports for your assigned classes.");
+      }
+    } catch (err) {
+      toast({ variant: "destructive", title: "Not allowed", description: err.message });
+      return;
+    }
 
     const messages = reportData
       .filter((s) => (s.mobilenumber || "").trim() !== "")

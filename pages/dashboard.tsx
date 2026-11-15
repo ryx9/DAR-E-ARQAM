@@ -2,6 +2,7 @@
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { supabase } from '../utils/supabaseClient'
+import { getClassAccess } from '../utils/classAccess'
 import { useRouter } from 'next/router'
 import { Button } from '../components/ui/button'
 import { Input } from '../components/ui/input'
@@ -80,12 +81,17 @@ export default function Dashboard() {
     const today = new Date().toISOString().split('T')[0]
 
     try {
+      const access = await getClassAccess()
       // 1. Fetch Classes - SORTED BY ID ASCENDING
-      const classesQuery = supabase
+      let classesQuery = supabase
         .from('classes')
         .select('*')
         .order('id', { ascending: true });
-
+      if (access.role === 'teacher' && !access.classIds?.length) {
+        setClasses([]);
+        return;
+      }
+      if (access.role === 'teacher') classesQuery = classesQuery.in('id', access.classIds || []);
       const classesData = await fetchWithPagination(classesQuery);
 
       // 2. Fetch Today's Attendance

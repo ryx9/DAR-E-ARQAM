@@ -33,3 +33,7 @@ The superadmin profile manager changes passwords directly through Supabase Auth 
 - `SUPABASE_SECRET_KEY` — the `sb_secret_...` key; server-only and must never use a `NEXT_PUBLIC_` prefix.
 
 The secret key bypasses Row Level Security. The password API checks that the caller is an active superadmin before using it.
+
+## Teacher class access
+
+Teacher-facing class workflows use the `teacher_class` assignments to limit class lists and class-specific operations, including attendance, notices, diary entries, activities, tests, syllabus tracking, and reports. These browser-side checks should be paired with equivalent Supabase Row Level Security policies to protect requests made outside the app.

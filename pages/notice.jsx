@@ -2,6 +2,7 @@
 import { useState, useEffect, useMemo, useRef } from 'react';
 import { useRouter } from 'next/router';
 import { supabase } from '../utils/supabaseClient';
+import { canAccessClass, getClassAccess } from '../utils/classAccess';
 import Navbar from '../components/Navbar';
 import Groq from 'groq-sdk';
 import Loader from '../components/Loader';
@@ -203,6 +204,7 @@ export default function BulkMessagePage() {
   const { student: urlStudentId, class: urlClassId } = router.query;
 
   const [classes, setClasses] = useState([]);
+  const [classAccess, setClassAccess] = useState(null);
   const [selectedClasses, setSelectedClasses] = useState([]);
   const [filterClear, setFilterClear] = useState('all');
   const [students, setStudents] = useState([]);
@@ -260,21 +262,36 @@ export default function BulkMessagePage() {
   }, []);
 
   useEffect(() => {
-    if (router.isReady && urlClassId && !urlStudentId) {
+    if (router.isReady && classAccess && urlClassId && !urlStudentId) {
       const classIds = Array.isArray(urlClassId) ? urlClassId : [urlClassId];
-      setSelectedClasses(classIds.map(String));
+      const availableIds = new Set(classes.map(c => String(c.id)));
+      setSelectedClasses(classIds.map(String).filter(id => availableIds.has(id)));
     }
-  }, [router.isReady, urlClassId, urlStudentId]);
+  }, [router.isReady, classAccess, classes, urlClassId, urlStudentId]);
 
   useEffect(() => {
-    supabase
-      .from('classes')
-      .select('id, name')
-      .order('id', { ascending: true })
-      .then(({ data, error }) => {
-        if (error) console.error('Classes fetch error', error);
-        else setClasses(data || []);
-      });
+    const fetchClasses = async () => {
+      try {
+        const access = await getClassAccess();
+        setClassAccess(access);
+        if (access.role === 'teacher' && !access.classIds?.length) {
+          setClasses([]);
+          return;
+        }
+        let query = supabase
+          .from('classes')
+          .select('id, name')
+          .order('id', { ascending: true });
+        if (access.role === 'teacher') query = query.in('id', access.classIds || []);
+        const { data, error } = await query;
+        if (error) throw error;
+        setClasses(data || []);
+      } catch (error) {
+        console.error('Classes fetch error', error);
+        showToast('Failed to load your assigned classes.', 'error');
+      }
+    };
+    fetchClasses();
   }, []);
 
   useEffect(() => {
@@ -286,12 +303,20 @@ export default function BulkMessagePage() {
       setStudents([]);
 
       try {
+        const access = classAccess || await getClassAccess();
+        if (access.role === 'teacher' && !access.classIds?.length) {
+          if (!cancelled) setSelectedIds(new Set());
+          return;
+        }
+
         if (urlStudentId) {
-          const { data, error } = await supabase
+          let query = supabase
             .from('active_students')
             .select('studentid, name, fathername, class_id, mobilenumber, Clear, classes(name)')
             .eq('studentid', urlStudentId)
             .limit(1);
+          if (access.role === 'teacher') query = query.in('class_id', access.classIds || []);
+          const { data, error } = await query;
 
           if (error) throw error;
 
@@ -300,10 +325,17 @@ export default function BulkMessagePage() {
             if (!cancelled) { setStudents(formatted); setSelectedIds(new Set([formatted[0].studentid])); }
           }
         } else if (selectedClasses.length > 0) {
+          const requestedClasses = access.role === 'teacher'
+            ? selectedClasses.filter(id => (access.classIds || []).some(assignedId => String(assignedId) === String(id)))
+            : selectedClasses;
+          if (requestedClasses.length === 0) {
+            if (!cancelled) { setStudents([]); setSelectedIds(new Set()); }
+            return;
+          }
           const { data, error } = await supabase
             .from('active_students')
             .select('studentid, name, fathername, class_id, mobilenumber, Clear, classes(name)')
-            .in('class_id', selectedClasses)
+            .in('class_id', requestedClasses)
             .order('name', { ascending: true });
 
           if (error) throw error;
@@ -327,7 +359,7 @@ export default function BulkMessagePage() {
 
     fetchStudents();
     return () => { cancelled = true; };
-  }, [selectedClasses, urlStudentId, router.isReady]);
+  }, [selectedClasses, urlStudentId, router.isReady, classAccess]);
 
   const filtered = useMemo(() => {
     let result = students;
@@ -445,6 +477,21 @@ export default function BulkMessagePage() {
     }
 
     const selectedArray = Array.from(selectedIds);
+    try {
+      const access = await getClassAccess();
+      if (selectedArray.some(id => {
+        const student = students.find(item => item.studentid === id);
+        return !student || !canAccessClass(access, student.class_id);
+      })) {
+        showToast('You can only send notices to students in your assigned classes.', 'error');
+        return;
+      }
+    } catch (error) {
+      console.error('Class permission check failed:', error);
+      showToast('Unable to verify your class permissions.', 'error');
+      return;
+    }
+
     const missingNumberStudents = selectedArray
       .map(id => students.find(s => s.studentid === id))
       .filter(s => !s || !s.mobilenumber);

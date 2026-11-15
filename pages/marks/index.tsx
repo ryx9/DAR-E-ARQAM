@@ -1,6 +1,7 @@
 import { useEffect, useState, useCallback } from 'react'
 import Link from 'next/link'
 import { supabase } from '../../utils/supabaseClient'
+import { canAccessClass, getClassAccess } from '../../utils/classAccess'
 import { Button } from '../../components/ui/button'
 import Navbar from '../../components/Navbar'
 import {
@@ -72,18 +73,31 @@ export default function MarksDashboard() {
       setIsAdmin(true)
     }
 
-    supabase
+    const loadClasses = async () => {
+      const access = await getClassAccess()
+      if (access.role === 'teacher' && !access.classIds?.length) {
+        setClasses([])
+        return
+      }
+      let query = supabase
       .from('classes')
       .select('id, name')
       .order('name')
-      .then(({ data }) => {
-        if (data) setClasses(data)
-      })
+      if (access.role === 'teacher') query = query.in('id', access.classIds || [])
+      const { data } = await query
+      if (data) setClasses(data)
+    }
+    loadClasses()
   }, [])
 
   /* ---------------- Fetch Tests (Paginated) ---------------- */
   const fetchTests = useCallback(async (pageIndex: number) => {
     if (!selectedClass) {
+        setTests([])
+        setTotalCount(0)
+        return
+    }
+    if (!canAccessClass(await getClassAccess(), selectedClass)) {
         setTests([])
         setTotalCount(0)
         return
@@ -158,9 +172,10 @@ export default function MarksDashboard() {
   /* ---------------- Admin Actions ---------------- */
   const handleDelete = async (id: number) => {
     if (!window.confirm("Are you sure you want to delete this test? This action cannot be undone.")) return
+    if (!canAccessClass(await getClassAccess(), selectedClass)) return
     
     setLoading(true)
-    const { error } = await supabase.from('tests').delete().eq('id', id)
+    const { error } = await supabase.from('tests').delete().eq('id', id).eq('class_id', selectedClass)
     if (!error) {
       fetchTests(currentPage)
     } else {
@@ -180,6 +195,7 @@ export default function MarksDashboard() {
   }
 
   const handleSaveEdit = async (id: number) => {
+    if (!canAccessClass(await getClassAccess(), selectedClass)) return
     setLoading(true)
     const { error } = await supabase
       .from('tests')
@@ -190,6 +206,7 @@ export default function MarksDashboard() {
         date: editForm.date
       })
       .eq('id', id)
+      .eq('class_id', selectedClass)
 
     if (!error) {
       setEditingId(null)

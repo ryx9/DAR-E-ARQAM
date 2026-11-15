@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useMemo, useState, useTransition } from "react";
 import { supabase } from "../utils/supabaseClient";
+import { canAccessClass, getClassAccess } from "../utils/classAccess";
 import Navbar from "../components/Navbar";
 import {
   Table,
@@ -91,13 +92,32 @@ export default function SyllabusTracker() {
 
   const fetchClassesAndRecords = async () => {
     setLoading(true);
-    const { data: classData, error: classError } = await supabase.from("classes").select("id, name");
+    const access = await getClassAccess();
+    if (access.role === "teacher" && !access.classIds?.length) {
+      setClasses([]);
+      setRecords([]);
+      setLoading(false);
+      return;
+    }
+    let classesQuery = supabase.from("classes").select("id, name");
+    if (access.role === "teacher") classesQuery = classesQuery.in("id", access.classIds || []);
+    const { data: classData, error: classError } = await classesQuery;
     
     // Fetch generic syllabus records
-    const { data: recordData, error: recError } = await supabase
+    let recordsQuery = supabase
       .from("syllabus_tracking")
       .select("*")
       .order("created_at", { ascending: false });
+    if (access.role === "teacher") {
+      if (!access.classIds?.length) {
+        setClasses([]);
+        setRecords([]);
+        setLoading(false);
+        return;
+      }
+      recordsQuery = recordsQuery.in("class_id", access.classIds || []);
+    }
+    const { data: recordData, error: recError } = await recordsQuery;
 
     if (!classError && classData) setClasses(getOrderedClasses(classData));
     if (!recError && recordData) setRecords(recordData || []);
@@ -108,6 +128,9 @@ export default function SyllabusTracker() {
     e.preventDefault();
     if (!selectedClass || !selectedSubject || !weekNum || !description.trim()) {
       return alert("Please fill all fields");
+    }
+    if (!canAccessClass(await getClassAccess(), selectedClass)) {
+      return alert("You can only add syllabus records for your assigned classes.");
     }
 
     const user = (await supabase.auth.getUser()).data.user;

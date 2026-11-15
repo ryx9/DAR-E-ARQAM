@@ -23,6 +23,7 @@ import {
 } from 'lucide-react';
 
 import { supabase } from '../../utils/supabaseClient';
+import { canAccessClass, getClassAccess } from '../../utils/classAccess';
 import Navbar from '../../components/Navbar';
 import Breadcrumbs from '../../components/Breadcrumbs';
 import Loader from '../../components/Loader';
@@ -65,8 +66,21 @@ export default function AttendanceRecordPage() {
   /* ---------------- Data Fetching ---------------- */
   useEffect(() => {
     if (id) {
-      fetchClassData();
-      fetchStudents();
+      const checkClassAccess = async () => {
+        try {
+          if (!canAccessClass(await getClassAccess(), id)) {
+            toast({ variant: 'destructive', title: 'Not allowed', description: 'You can only access attendance for your assigned classes.' });
+            router.replace('/dashboard');
+            return;
+          }
+          fetchClassData();
+          fetchStudents();
+        } catch (error) {
+          toast({ variant: 'destructive', title: 'Error', description: error.message || 'Unable to verify class access.' });
+          router.replace('/dashboard');
+        }
+      };
+      checkClassAccess();
     }
   }, [id]);
 
@@ -77,6 +91,7 @@ export default function AttendanceRecordPage() {
   }, [id, students, selectedDate]);
 
   const fetchClassData = async () => {
+    if (!canAccessClass(await getClassAccess(), id)) return;
     const { data, error } = await supabase
       .from('classes')
       .select('name, description')
@@ -86,6 +101,7 @@ export default function AttendanceRecordPage() {
   };
 
   const fetchStudents = async () => {
+    if (!canAccessClass(await getClassAccess(), id)) return;
     setIsLoading(true);
     const { data, error } = await supabase
       .from('active_students')
@@ -96,6 +112,7 @@ export default function AttendanceRecordPage() {
   };
 
   const fetchAttendance = async () => {
+    if (!canAccessClass(await getClassAccess(), id)) return;
     setIsLoading(true);
     const dateStr = format(selectedDate, 'yyyy-MM-dd');
 
@@ -166,6 +183,10 @@ export default function AttendanceRecordPage() {
   };
 
   const saveAttendance = async () => {
+    if (!canAccessClass(await getClassAccess(), id)) {
+      toast({ variant: 'destructive', title: 'Not allowed', description: 'You can only update attendance for your assigned classes.' });
+      return;
+    }
     const hasUnmarked = attendanceData.some(a => a.status === 'Unmarked');
     if (hasUnmarked) {
       toast({ 

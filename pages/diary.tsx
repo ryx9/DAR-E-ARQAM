@@ -1,6 +1,7 @@
 "use client";
 import { useState, useEffect } from 'react';
 import { supabase } from '../utils/supabaseClient';
+import { canAccessClass, getClassAccess } from '../utils/classAccess';
 import Navbar from '../components/Navbar';
 import Groq from 'groq-sdk';
 import { Button } from '../components/ui/button';
@@ -136,20 +137,36 @@ export default function DiaryPage() {
   };
 
   const fetchClasses = async () => {
-    const { data, error } = await supabase.from('classes').select('id, name').order('name');
+    const access = await getClassAccess();
+    if (access.role === 'teacher' && !access.classIds?.length) {
+      setClasses([]);
+      return;
+    }
+    let query = supabase.from('classes').select('id, name').order('name');
+    if (access.role === 'teacher') query = query.in('id', access.classIds || []);
+    const { data, error } = await query;
     if (error) toast({ variant: 'destructive', title: 'Error', description: 'Failed to fetch classes' });
     else setClasses(data || []);
   };
 
   const fetchTodayDiaries = async () => {
+    const access = await getClassAccess();
     const todayStart = new Date();
     todayStart.setHours(0, 0, 0, 0);
 
-    const { data, error } = await supabase
+    let query = supabase
       .from('diary')
       .select('*')
       .gte('created_at', todayStart.toISOString())
       .order('created_at', { ascending: false });
+    if (access.role === 'teacher') {
+      if (!access.classIds?.length) {
+        setDiaries([]);
+        return;
+      }
+      query = query.in('class_id', access.classIds || []);
+    }
+    const { data, error } = await query;
 
     if (error) toast({ variant: 'destructive', title: 'Error', description: 'Failed to fetch diaries' });
     else setDiaries(data || []);
@@ -220,6 +237,10 @@ export default function DiaryPage() {
   const addDiary = async () => {
     if (!classId || !diary || !date) {
       toast({ variant: 'destructive', title: 'Required', description: 'Please fill all fields' });
+      return;
+    }
+    if (!canAccessClass(await getClassAccess(), classId)) {
+      toast({ variant: 'destructive', title: 'Not allowed', description: 'You can only add diary entries for your assigned classes.' });
       return;
     }
 

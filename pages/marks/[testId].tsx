@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useRouter } from 'next/router'
 import { supabase } from '../../utils/supabaseClient'
+import { canAccessClass, getClassAccess } from '../../utils/classAccess'
 import { Button } from '../../components/ui/button'
 import { Input } from '../../components/ui/input'
 import Navbar from '../../components/Navbar'
@@ -58,6 +59,11 @@ export default function MarksEntryPage() {
           .eq('id', Number(testId))
           .single()
         if (testErr) throw testErr
+        if (!canAccessClass(await getClassAccess(), testData.class_id)) {
+          toast({ variant: 'destructive', title: 'Not allowed', description: 'You can only access tests for your assigned classes.' })
+          router.replace('/marks')
+          return
+        }
         
         setTest(testData)
         // Initialize editable states
@@ -129,6 +135,9 @@ export default function MarksEntryPage() {
     setSaving(true)
     try {
       const tid = Number(testId)
+      if (!test || !canAccessClass(await getClassAccess(), test.class_id)) {
+        throw new Error('You can only update tests for your assigned classes.')
+      }
 
       // 1. Update Test Details (Name & Date) in 'tests' table
       const { error: testUpdateError } = await supabase
@@ -194,7 +203,11 @@ export default function MarksEntryPage() {
   const deleteTest = async () => {
     if (!testId || Array.isArray(testId)) return
     if (!confirm('Delete this test and all associated marks?')) return
-    const { error } = await supabase.from('tests').delete().eq('id', Number(testId))
+    if (!test || !canAccessClass(await getClassAccess(), test.class_id)) {
+      toast({ variant: 'destructive', title: 'Not allowed', description: 'You can only delete tests for your assigned classes.' })
+      return
+    }
+    const { error } = await supabase.from('tests').delete().eq('id', Number(testId)).eq('class_id', test.class_id)
     if (error) {
       toast({ variant: 'destructive', title: 'Delete failed', description: error.message })
     } else {

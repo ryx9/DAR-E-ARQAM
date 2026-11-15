@@ -3,6 +3,7 @@ import React, { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/router";
 import { supabase } from '../utils/supabaseClient';
+import { getClassAccess } from '../utils/classAccess';
 import {
   motion,
   AnimatePresence
@@ -145,14 +146,24 @@ const DashboardHome = () => {
     const today = new Date().toISOString().split('T')[0];
 
     try {
+      const access = await getClassAccess();
       // 1. Fetch Classes
-      const classesQuery = supabase.from('classes').select('*').order('id', { ascending: true });
+      let classesQuery = supabase.from('classes').select('*').order('id', { ascending: true });
+      if (access.role === 'teacher' && !access.classIds?.length) {
+        setClasses([]);
+        return;
+      }
+      if (access.role === 'teacher') classesQuery = classesQuery.in('id', access.classIds || []);
       const classesData = await fetchWithPagination(classesQuery);
 
       // 2. Fetch Today's Attendance
-      const todaysAttendance = await fetchWithPagination(
-        supabase.from('attendance').select('class_id, date').eq('date', today)
-      );
+      let attendanceQuery = supabase.from('attendance').select('class_id, date').eq('date', today);
+      if (access.role === 'teacher' && access.classIds?.length) {
+        attendanceQuery = attendanceQuery.in('class_id', access.classIds || []);
+      }
+      const todaysAttendance = access.role === 'teacher' && !access.classIds?.length
+        ? []
+        : await fetchWithPagination(attendanceQuery);
       const todaysMap = new Set((todaysAttendance || []).map((a: any) => a.class_id));
 
       // 3. Process Details
@@ -196,6 +207,9 @@ const DashboardHome = () => {
 
   // ----- CRUD Actions -----
   const createClass = async () => {
+    if (userRole !== 'admin' && userRole !== 'superadmin') {
+      return toast({ variant: "destructive", title: "Unauthorized", description: "Only admins can create classes." });
+    }
     if (!newClassName.trim()) return;
     const { data, error } = await supabase.from('classes').insert([{ name: newClassName, description: newClassDescription }]).select();
     if (error) return toast({ variant: "destructive", title: "Error", description: error.message });
@@ -206,6 +220,9 @@ const DashboardHome = () => {
   };
 
   const updateClass = async () => {
+    if (userRole !== 'admin' && userRole !== 'superadmin') {
+      return toast({ variant: "destructive", title: "Unauthorized" });
+    }
     if (!editingClass) return;
     const { error } = await supabase.from('classes').update({ name: newClassName, description: newClassDescription }).eq('id', editingClass.id);
     if (error) return toast({ variant: "destructive", title: "Error", description: "Update failed" });
@@ -216,6 +233,9 @@ const DashboardHome = () => {
   };
 
   const deleteClass = async () => {
+    if (userRole !== 'admin' && userRole !== 'superadmin') {
+      return toast({ variant: "destructive", title: "Unauthorized" });
+    }
     if (!deleteClassId) return;
     const { error } = await supabase.from('classes').delete().eq('id', deleteClassId);
     if (error) toast({ variant: "destructive", title: "Error", description: "Deletion failed" });

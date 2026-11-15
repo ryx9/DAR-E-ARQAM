@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react"
 import { supabase } from "../utils/supabaseClient"
+import { canAccessClass, getClassAccess } from "../utils/classAccess"
 import { Button } from "../components/ui/button"
 import { Input } from "../components/ui/input"
 import { Card, CardContent, CardHeader, CardTitle } from "../components/ui/card"
@@ -23,10 +24,17 @@ export default function MessagesAdmin() {
 
   async function fetchMessages() {
     setLoading(true)
+    const access = await getClassAccess()
+    if (access.role === "teacher" && !access.classIds?.length) {
+      setMessages([])
+      setLoading(false)
+      return
+    }
     let query = supabase
       .from("messages")
       .select("*, classes:class_id(name)")
       .order("created_at", { ascending: false })
+    if (access.role === "teacher") query = query.in("class_id", access.classIds || [])
 
     if (statusFilter === "false") {
       query = query.eq("sent", false)
@@ -59,12 +67,16 @@ export default function MessagesAdmin() {
   }
 
   async function markAsSent(id) {
-    await supabase.from("messages").update({ sent: true }).eq("id", id)
+    const message = messages.find(item => item.id === id)
+    if (!message || !canAccessClass(await getClassAccess(), message.class_id)) return
+    await supabase.from("messages").update({ sent: true }).eq("id", id).eq("class_id", message.class_id)
     fetchMessages()
   }
 
   async function deleteMessage(id) {
-    await supabase.from("messages").delete().eq("id", id)
+    const message = messages.find(item => item.id === id)
+    if (!message || !canAccessClass(await getClassAccess(), message.class_id)) return
+    await supabase.from("messages").delete().eq("id", id).eq("class_id", message.class_id)
     fetchMessages()
   }
 

@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { useRouter } from 'next/router'
 import Link from 'next/link'
 import { supabase } from '../../utils/supabaseClient'
+import { canAccessClass, getClassAccess } from '../../utils/classAccess'
 import { Button } from '../../components/ui/button'
 import { Input } from '../../components/ui/input'
 import { Select, SelectTrigger, SelectContent, SelectItem, SelectValue } from '../../components/ui/select'
@@ -48,10 +49,17 @@ export default function NewTestPage() {
   useEffect(() => {
     const loadClasses = async () => {
       try {
-        const { data } = await supabase
+        const access = await getClassAccess()
+        if (access.role === 'teacher' && !access.classIds?.length) {
+          setClasses([])
+          return
+        }
+        let query = supabase
           .from('classes')
           .select('id, name')
           .order('name')
+        if (access.role === 'teacher') query = query.in('id', access.classIds || [])
+        const { data } = await query
         setClasses(data || [])
       } catch (e) {
         console.error(e)
@@ -70,6 +78,9 @@ export default function NewTestPage() {
 
     setLoading(true)
     try {
+      if (!canAccessClass(await getClassAccess(), form.class_id)) {
+        throw new Error('You can only create tests for your assigned classes.')
+      }
       const selectedClass = classes.find(c => String(c.id) === form.class_id)
 
       const { error } = await supabase.from('tests').insert([{

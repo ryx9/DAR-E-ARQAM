@@ -21,6 +21,7 @@ import {
 } from 'lucide-react'
 
 import { supabase } from '../../utils/supabaseClient'
+import { canAccessClass, getClassAccess } from '../../utils/classAccess'
 import Navbar from '../../components/Navbar'
 import Breadcrumbs from '../../components/Breadcrumbs'
 import Loader from '../../components/Loader' 
@@ -64,10 +65,9 @@ export default function ClassPage() {
 
   /* ---------------- Fetch Data ---------------- */
   useEffect(() => {
-    if (id) {
-      fetchClassData()
-      fetchStudents()
-    }
+    if (!id) return
+    fetchClassData()
+    fetchStudents()
   }, [id])
 
   useEffect(() => {
@@ -84,6 +84,11 @@ export default function ClassPage() {
 
   const fetchClassData = async () => {
     setIsLoading(true)
+    if (!canAccessClass(await getClassAccess(), id)) {
+      router.replace('/dashboard')
+      setIsLoading(false)
+      return
+    }
     const { data, error } = await supabase
       .from('classes')
       .select('*')
@@ -99,6 +104,10 @@ export default function ClassPage() {
   }
 
   const fetchStudents = async () => {
+    if (!canAccessClass(await getClassAccess(), id)) {
+      router.replace('/dashboard')
+      return
+    }
     const { data, error } = await supabase
       .from('active_students')
       .select('studentid, name, fathername, dob')
@@ -113,6 +122,10 @@ export default function ClassPage() {
   }
 
   const fetchAttendance = async () => {
+    if (!canAccessClass(await getClassAccess(), id)) {
+      router.replace('/dashboard')
+      return
+    }
     const { data, error } = await supabase
       .from('attendance')
       .select('*')
@@ -129,6 +142,11 @@ export default function ClassPage() {
   // ---- LAZY LOAD FUNCTION FOR STREAKS ----
   const fetchAbsentStreaks = async () => {
     setLoadingStreaks(true)
+    if (!canAccessClass(await getClassAccess(), id)) {
+      router.replace('/dashboard')
+      setLoadingStreaks(false)
+      return
+    }
     
     const { data, error } = await supabase
       .from('attendance')
@@ -179,6 +197,10 @@ export default function ClassPage() {
   const addStudent = async () => {
     if (!newStudentName || !newstudentid) {
       toast({ variant: "destructive", title: "Missing Info", description: "Name and ID are required." })
+      return
+    }
+    if (!canAccessClass(await getClassAccess(), id)) {
+      toast({ variant: "destructive", title: "Not allowed", description: "You can only add students to your assigned classes." })
       return
     }
 

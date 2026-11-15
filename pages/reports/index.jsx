@@ -2,6 +2,7 @@
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import { useRouter } from 'next/router';
 import { supabase } from '../../utils/supabaseClient';
+import { canAccessClass, getClassAccess } from '../../utils/classAccess';
 import Navbar from '../../components/Navbar';
 import { Button } from '../../components/ui/button';
 import { Input } from '../../components/ui/input';
@@ -1420,7 +1421,7 @@ function CompareTab({ classes, start, end }) {
     if (selected.length < 2) { toast({ variant: 'destructive', title: 'Select at least two classes' }); return; }
     setLoading(true);
     try {
-      const rows = await paginate(() => supabase.from('marks').select(MARK_SELECT).gte('tests.date', start).lte('tests.date', end));
+      const rows = await paginate(() => supabase.from('marks').select(MARK_SELECT).in('tests.class_id', selected).gte('tests.date', start).lte('tests.date', end));
       const marks = rows.filter(m => m.obtained_marks !== null && m.obtained_marks !== undefined && selected.includes(String(m.tests?.class_id)))
         .map(m => ({ ...m, test_id: m.test_id ?? m.tests?.id }));
       const tmap = {}; marks.forEach(m => { tmap[m.tests.id] = m.tests; });
@@ -1544,7 +1545,27 @@ export default function ResultCenterPage() {
       const s = JSON.parse(localStorage.getItem('reports:filters') || '{}');
       if (s.classId) setClassId(s.classId); if (s.start) setStart(s.start); if (s.end) setEnd(s.end);
     } catch { /* ignore */ }
-    supabase.from('classes').select('id, name').order('id').then(({ data: d }) => setClasses(d || []));
+    const loadClasses = async () => {
+      const access = await getClassAccess();
+      if (access.role === 'teacher' && !access.classIds?.length) {
+        setClasses([]);
+        setClassId('');
+        return;
+      }
+      let query = supabase.from('classes').select('id, name').order('id');
+      if (access.role === 'teacher') query = query.in('id', access.classIds || []);
+      const { data: classData, error } = await query;
+      if (error) {
+        toast({ variant: 'destructive', title: 'Failed to load classes', description: error.message });
+        return;
+      }
+      setClasses(classData || []);
+      const availableClasses = classData || [];
+      setClassId(current => availableClasses.some(c => String(c.id) === String(current))
+        ? current
+        : String(availableClasses[0]?.id || ''));
+    };
+    loadClasses();
   }, []);
   useEffect(() => { if (router.isReady && TABS.some(t => t.id === router.query.tab)) setTab(router.query.tab); }, [router.isReady, router.query.tab]);
   useEffect(() => {
@@ -1562,6 +1583,9 @@ export default function ResultCenterPage() {
     if (!canRun) return;
     setLoading(true);
     try {
+      if (!canAccessClass(await getClassAccess(), classId)) {
+        throw new Error('You can only view reports for your assigned classes.');
+      }
       const className = classes.find(c => String(c.id) === String(classId))?.name || 'Class';
       const { data: students, error } = await supabase.from('active_students').select('studentid, name, fathername, mobilenumber, Clear').eq('class_id', classId);
       if (error) throw error;
