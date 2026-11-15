@@ -112,10 +112,48 @@ function DefaulterListContent() {
       // 2. Fetch Invoices (Chunked by Student IDs & Paginated)
       const chunkSize = 150
       let allInvoices = []
+      const receivedByStudent = new Map()
+      const latestPaymentByStudent = new Map()
       const studentIds = students.map(s => s.studentid)
 
       for (let i = 0; i < studentIds.length; i += chunkSize) {
         const chunk = studentIds.slice(i, i + chunkSize)
+        let historyOffset = 0
+        while (true) {
+          const { data: history, error: historyError } = await supabase
+            .from('fee_payments').select('id, paid_at, fee_invoices!inner(student_id)')
+            .in('fee_invoices.student_id', chunk).lt('paid_at', `${endDate}T23:59:59.999+05:00`)
+            .order('id', { ascending: true }).range(historyOffset, historyOffset + limit - 1)
+          if (historyError) throw historyError
+          for (const payment of history || []) {
+            const invoice = Array.isArray(payment.fee_invoices) ? payment.fee_invoices[0] : payment.fee_invoices
+            if (!invoice || !payment.paid_at) continue
+            const key = String(invoice.student_id), previous = latestPaymentByStudent.get(key)
+            if (!previous || new Date(payment.paid_at) > new Date(previous)) latestPaymentByStudent.set(key, payment.paid_at)
+          }
+          if (!history || history.length < limit) break
+          historyOffset += limit
+        }
+        let paymentOffset = 0
+        while (true) {
+          const { data: payments, error: paymentError } = await supabase
+            .from("fee_payments")
+            .select("id, amount, fee_invoices!inner(student_id, invoice_date)")
+            .in("fee_invoices.student_id", chunk)
+            .gte("fee_invoices.invoice_date", startDate)
+            .lte("fee_invoices.invoice_date", endDate)
+            .order("id", { ascending: true })
+            .range(paymentOffset, paymentOffset + limit - 1)
+          if (paymentError) throw paymentError
+          for (const payment of payments || []) {
+            const invoice = Array.isArray(payment.fee_invoices) ? payment.fee_invoices[0] : payment.fee_invoices
+            if (!invoice) continue
+            const key = String(invoice.student_id)
+            receivedByStudent.set(key, (receivedByStudent.get(key) || 0) + (Number(payment.amount) || 0))
+          }
+          if (!payments || payments.length < limit) break
+          paymentOffset += limit
+        }
         let fromInvoices = 0
         let hasMoreInvoices = true
 
@@ -160,14 +198,7 @@ function DefaulterListContent() {
         let annualCharges = 0
         let stationeryCharges = 0
         let arrears = 0
-        let totalReceivedAmount = 0
-
-        // Track ALL payments across these specific invoices, completely date independent
-        studentInvoices.forEach(inv => {
-          inv.fee_payments?.forEach(p => {
-             totalReceivedAmount += (p.amount || 0)
-          })
-        })
+        const totalReceivedAmount = receivedByStudent.get(String(student.studentid)) || 0
 
         // Merge and categorize remaining balances from the latest invoice details
         latestInvoice.fee_invoice_details?.forEach(detail => {
@@ -229,7 +260,8 @@ function DefaulterListContent() {
             stationeryCharges,
             arrears,
             totalPending,
-            totalReceivedAmount
+            totalReceivedAmount,
+            lastPaymentAt: latestPaymentByStudent.get(String(student.studentid)) || null
           })
         }
       })
@@ -497,7 +529,7 @@ function DefaulterListContent() {
                                  <th className="p-4 font-bold tracking-wider text-right text-orange-700 dark:text-orange-400 print:text-black">Stationery</th>
                                  <th className="p-4 font-bold tracking-wider text-right">Arrears</th>
                                  <th className="p-4 font-bold tracking-wider text-right text-red-600 dark:text-red-400 print:text-black">Total Pending</th>
-                                 <th className="p-4 font-bold tracking-wider text-right text-emerald-600 dark:text-emerald-500 print:text-black">Total Received</th>
+                                 <th className="p-4 font-bold tracking-wider text-right text-emerald-600 dark:text-emerald-500 print:text-black">Received for invoices</th>
                              </tr>
                          </thead>
                          <tbody className="divide-y divide-white/10 dark:divide-white/5 print:divide-gray-300">
@@ -582,6 +614,21 @@ function DefaulterListContent() {
                  </div>
              )}
           </div>
+          {defaulters.length > 0 && <section className="rounded-2xl border border-slate-200 bg-white p-5 dark:border-slate-800 dark:bg-slate-900">
+            <h2 className="text-lg font-bold">Time since last payment</h2>
+            <p className="mt-1 text-xs text-slate-500">Calendar months since the most recent recorded payment as of {endDate}. Students who paid in the end month are omitted.</p>
+            <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-4">{['1 month', '2 months', '3 months or more', 'No recorded payment'].map((label, index) => {
+              const members = defaulters.filter(student => {
+                if (!student.lastPaymentAt) return index === 3
+                const parts = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Karachi', year: 'numeric', month: '2-digit' }).formatToParts(new Date(student.lastPaymentAt))
+                const year = Number(parts.find(part => part.type === 'year').value), month = Number(parts.find(part => part.type === 'month').value)
+                const [endYear, endMonth] = endDate.split('-').map(Number)
+                const gap = endYear * 12 + endMonth - (year * 12 + month)
+                return index === 0 ? gap === 1 : index === 1 ? gap === 2 : index === 2 ? gap >= 3 : false
+              })
+              return <div key={label} className="rounded-xl border border-slate-200 p-4 dark:border-slate-700"><h3 className="font-semibold">{label} <span className="text-slate-500">({members.length})</span></h3>{members.length ? <ul className="mt-2 space-y-2 text-sm">{members.map(student => <li key={student.studentid}>{student.name}<span className="block text-xs text-slate-500">{student.className} · {student.lastPaymentAt ? new Date(student.lastPaymentAt).toLocaleDateString('en-GB', { timeZone: 'Asia/Karachi' }) : 'Never recorded'}</span></li>)}</ul> : <p className="mt-2 text-xs text-slate-500">No students</p>}</div>
+            })}</div>
+          </section>}
         </div>
       </div>
     </>

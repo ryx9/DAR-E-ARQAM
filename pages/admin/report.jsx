@@ -49,6 +49,10 @@ export default function ReportsPage() {
       router.push(`/admin/student-statement`)
       return;
     }
+    if (reportType === "monthly") {
+      router.push('/admin/monthly-fee-report')
+      return
+    }
 
     // IF DEFAULTER LIST: Navigate to /admin/defaulters with URL params
     if (reportType === "defaulter") {
@@ -92,6 +96,13 @@ export default function ReportsPage() {
   const requiresDates = reportType === "collection" || reportType === "defaulter";
 
   switch (reportType) {
+    case "monthly":
+      title = "Monthly Fee Overview";
+      description = "Compare invoices and payments for each student, month by month.";
+      BgIcon = FileBarChart;
+      themeColor = "blue";
+      buttonText = "Open Monthly Overview";
+      break;
     case "defaulter":
       title = "Defaulter List";
       description = "View list of students with pending fees for a specific date range.";
@@ -186,6 +197,7 @@ export default function ReportsPage() {
                   <option value="collection" className="text-black dark:text-white dark:bg-slate-800">Collection Report</option>
                   <option value="defaulter" className="text-black dark:text-white dark:bg-slate-800">Defaulter List</option>
                   <option value="statement" className="text-black dark:text-white dark:bg-slate-800">Student Fee Statement</option>
+                  <option value="monthly" className="text-black dark:text-white dark:bg-slate-800">Monthly Fee Overview</option>
                   <option value="feesummary" className="text-black dark:text-white dark:bg-slate-800">Fee Summary & Average</option>
                   <option value="studentslist" className="text-black dark:text-white dark:bg-slate-800">Students List / Award Sheet</option>
                 </select>

@@ -36,7 +36,7 @@ const totals = (list) => ({
   stationeryCharges: list.reduce((a, b) => a + (b.stationeryCharges || 0), 0),
   arrears:           list.reduce((a, b) => a + (b.arrears || 0), 0),
   totalPending:      list.reduce((a, b) => a + (b.totalPending || 0), 0),
-  received:          list.reduce((a, b) => a + (b.amountReceivedThisMonth || 0), 0),
+  received:          list.reduce((a, b) => a + (Number(b.totalReceivedAmount) || 0), 0),
 });
 
 // ─── Shared cell styles ──────────────────────────────────────────────────────
@@ -133,7 +133,7 @@ export const exportToPDF = async (defaulters, startDate, endDate) => {
         fmt(s.stationeryCharges),
         fmt(s.arrears),
         fmt(s.totalPending),
-        fmt(s.amountReceivedThisMonth),
+        fmt(s.totalReceivedAmount),
       ]);
     }
 
@@ -236,7 +236,7 @@ export const exportToPDF = async (defaulters, startDate, endDate) => {
 
   const kpis = [
     { label: "Total Pending",  value: `PKR ${gt.totalPending.toLocaleString()}` },
-    { label: "Collected",      value: `PKR ${gt.received.toLocaleString()}` },
+    { label: "Received for invoices", value: `PKR ${gt.received.toLocaleString()}` },
     { label: "Recovery Rate",  value: `${recoveryRate}%` },
     { label: "Chronic Students", value: `${chronicCount}` },
   ];
@@ -379,7 +379,7 @@ export const exportToPDF = async (defaulters, startDate, endDate) => {
   // 3. Recovery efficiency
   if (gt.received > 0) {
     insights.push(
-      `${recoveryRate}% collected this period. ` +
+      `${recoveryRate}% received against invoices dated in the selected period. ` +
       (parseFloat(recoveryRate) < 50
         ? "Below 50% — escalate follow-up for high-balance students first."
         : "Above 50% — focus remaining effort on the chronic segment.")
@@ -409,6 +409,36 @@ export const exportToPDF = async (defaulters, startDate, endDate) => {
   doc.setTextColor(150, 150, 150);
   doc.text("* Chronic % = (Arrears + Prev Tuition) ÷ Total Pending", 14, lY + 2);
 
+  // Calendar-month gap since the last recorded payment, as of the selected end date.
+  const endParts = String(endDate).split('-').map(Number);
+  const endMonth = endParts[0] * 12 + endParts[1];
+  const groups = [[], [], [], []];
+  defaulters.forEach(student => {
+    if (!student.lastPaymentAt) { groups[3].push(student); return; }
+    const parts = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Karachi', year: 'numeric', month: '2-digit' }).formatToParts(new Date(student.lastPaymentAt));
+    const year = Number(parts.find(part => part.type === 'year').value);
+    const month = Number(parts.find(part => part.type === 'month').value);
+    const gap = endMonth - (year * 12 + month);
+    if (gap >= 3) groups[2].push(student);
+    else if (gap === 2) groups[1].push(student);
+    else if (gap === 1) groups[0].push(student);
+  });
+  doc.addPage();
+  const labels = ['1 month since last payment', '2 months since last payment', '3 months or more since last payment', 'No recorded payment'];
+  const agingRows = [];
+  groups.forEach((students, index) => {
+    agingRows.push([{ content: `${labels[index]} (${students.length})`, colSpan: 4, styles: S.classHead }]);
+    if (!students.length) agingRows.push([{ content: 'No students', colSpan: 4 }]);
+    students.sort((a, b) => String(a.class_id ?? '').localeCompare(String(b.class_id ?? ''), undefined, { numeric: true }) || String(a.name || '').localeCompare(String(b.name || ''))).forEach(s => agingRows.push([s.name || '-', s.fathername || '-', s.className || '-', s.lastPaymentAt ? new Date(s.lastPaymentAt).toLocaleDateString('en-GB', { timeZone: 'Asia/Karachi' }) : 'Never recorded']));
+  });
+  autoTable(doc, {
+    startY: 29, margin: { top: 29, bottom: 15, left: 14, right: 14 }, theme: 'grid',
+    head: [['Student', 'Father / guardian', 'Class', 'Last payment']], body: agingRows,
+    headStyles: { fillColor: [235, 238, 244], textColor: [30, 41, 59], fontStyle: 'bold' },
+    styles: { fontSize: 8, cellPadding: 2, lineColor: [203, 213, 225], lineWidth: 0.1 },
+    didDrawPage: () => { doc.setFont('helvetica', 'normal'); doc.setFontSize(7); doc.setTextColor(100, 116, 139); doc.text('Calendar months since last recorded payment, as of the selected end date.', 14, 26); },
+  });
+
   // ── Finalize ──────────────────────────────────────────────────────────────
 
   if (typeof doc.putTotalPages === "function") doc.putTotalPages(TOT_PG);
@@ -433,7 +463,7 @@ export const exportToCSV = async (defaulters) => {
   const HEADERS = [
     "Student ID","Name","Father Name","Class",
     "Curr Tuition","Prev Tuition","Annual Charges",
-    "Stationery","Arrears","Total Pending","Received This Month",
+    "Stationery","Arrears","Total Pending","Received for invoices in period",
   ];
 
   const grouped = groupByClass(defaulters);
@@ -454,7 +484,7 @@ export const exportToCSV = async (defaulters) => {
         d.stationeryCharges || 0,
         d.arrears           || 0,
         d.totalPending      || 0,
-        d.amountReceivedThisMonth || 0,
+        d.totalReceivedAmount || 0,
       ]);
     }
 
