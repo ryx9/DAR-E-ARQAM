@@ -43,6 +43,10 @@ export default function ProfilesPage() {
   const [editForm, setEditForm] = useState({ name: "", mobilenumber: "", role: "", selectedClasses: [] })
   const [saveLoading, setSaveLoading] = useState(false)
   const [modalLoading, setModalLoading] = useState(false)
+  const [newPassword, setNewPassword] = useState("")
+  const [confirmPassword, setConfirmPassword] = useState("")
+  const [showNewPassword, setShowNewPassword] = useState(false)
+  const [passwordLoading, setPasswordLoading] = useState(false)
 
   const roles = ["teacher", "admin", "superadmin"]
 
@@ -129,6 +133,9 @@ export default function ProfilesPage() {
   // Edit Modal Handlers
   const openEditModal = async (profile) => {
     setEditingProfile(profile.id)
+    setNewPassword("")
+    setConfirmPassword("")
+    setShowNewPassword(false)
     setEditForm({ 
       name: profile.name || "", 
       mobilenumber: profile.mobilenumber || "", 
@@ -153,6 +160,49 @@ export default function ProfilesPage() {
       }
     }
     setModalLoading(false)
+  }
+
+  const handleChangePassword = async () => {
+    if (newPassword.length < 8) {
+      toast({ title: "Password must be at least 8 characters", variant: "destructive" })
+      return
+    }
+
+    if (newPassword !== confirmPassword) {
+      toast({ title: "Passwords do not match", variant: "destructive" })
+      return
+    }
+
+    setPasswordLoading(true)
+    try {
+      const { data: { session }, error: sessionError } = await supabase.auth.getSession()
+      if (sessionError) throw sessionError
+      if (!session) throw new Error("Your session has expired. Please sign in again.")
+
+      const response = await fetch(`/api/admin/profiles/${encodeURIComponent(editingProfile)}/password`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${session.access_token}`
+        },
+        body: JSON.stringify({ password: newPassword })
+      })
+      const result = await response.json()
+
+      if (!response.ok) throw new Error(result.error || "Failed to change password")
+
+      toast({ title: "Password changed successfully" })
+      setNewPassword("")
+      setConfirmPassword("")
+    } catch (error) {
+      toast({
+        title: "Failed to change password",
+        description: error.message || "An unexpected error occurred.",
+        variant: "destructive"
+      })
+    } finally {
+      setPasswordLoading(false)
+    }
   }
 
   const handleSaveProfile = async () => {
@@ -643,6 +693,52 @@ export default function ProfilesPage() {
                         </motion.div>
                       )}
                     </AnimatePresence>
+
+                    <div className="pt-4 border-t border-gray-100 dark:border-slate-800 space-y-3">
+                      <div>
+                        <label className="block text-xs font-bold text-gray-500 dark:text-slate-400 uppercase tracking-wider mb-1">New Password</label>
+                        <div className="relative">
+                          <Input
+                            type={showNewPassword ? "text" : "password"}
+                            autoComplete="new-password"
+                            value={newPassword}
+                            onChange={e => setNewPassword(e.target.value)}
+                            placeholder="At least 8 characters"
+                            className="pr-10 bg-white dark:bg-slate-800 border-gray-200 dark:border-slate-700 text-gray-900 dark:text-white placeholder:text-gray-400 dark:placeholder:text-gray-500"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => setShowNewPassword(prev => !prev)}
+                            aria-label={showNewPassword ? "Hide password" : "Show password"}
+                            className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 dark:text-slate-400"
+                          >
+                            {showNewPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                          </button>
+                        </div>
+                      </div>
+                      <div>
+                        <label className="block text-xs font-bold text-gray-500 dark:text-slate-400 uppercase tracking-wider mb-1">Confirm Password</label>
+                        <Input
+                          type={showNewPassword ? "text" : "password"}
+                          autoComplete="new-password"
+                          value={confirmPassword}
+                          onChange={e => setConfirmPassword(e.target.value)}
+                          placeholder="Re-enter the new password"
+                          className="bg-white dark:bg-slate-800 border-gray-200 dark:border-slate-700 text-gray-900 dark:text-white placeholder:text-gray-400 dark:placeholder:text-gray-500"
+                        />
+                      </div>
+                      <p className="text-xs text-gray-500 dark:text-slate-400">
+                        This updates the account directly in Supabase Auth by profile ID. The email address does not need to be valid.
+                      </p>
+                      <Button
+                        type="button"
+                        onClick={handleChangePassword}
+                        disabled={passwordLoading || modalLoading || !newPassword || !confirmPassword}
+                        className="bg-amber-600 hover:bg-amber-700 text-white"
+                      >
+                        {passwordLoading ? <Loader small /> : "Change Password"}
+                      </Button>
+                    </div>
                   </>
                 )}
               </div>

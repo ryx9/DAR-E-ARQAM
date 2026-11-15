@@ -24,3 +24,12 @@ This project is an Attendance Management System built with Next.js. It aims to s
 - Date-fns
 - Framer Motion
 
+## Admin password changes
+
+The superadmin profile manager changes passwords directly through Supabase Auth using each profile's user ID, so profile email addresses do not need to be valid. Configure these environment variables:
+
+- `NEXT_PUBLIC_SUPABASE_URL` — the project URL.
+- `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` — the `sb_publishable_...` key; safe for browser use.
+- `SUPABASE_SECRET_KEY` — the `sb_secret_...` key; server-only and must never use a `NEXT_PUBLIC_` prefix.
+
+The secret key bypasses Row Level Security. The password API checks that the caller is an active superadmin before using it.
