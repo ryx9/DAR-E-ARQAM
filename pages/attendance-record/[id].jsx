@@ -28,6 +28,7 @@ import Navbar from '../../components/Navbar';
 import Breadcrumbs from '../../components/Breadcrumbs';
 import Loader from '../../components/Loader';
 import { Button } from '../../components/ui/button';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '../../components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../../components/ui/select';
 import { useToast } from '../../hooks/use-toast';
 
@@ -52,6 +53,7 @@ export default function AttendanceRecordPage() {
   // UI State
   const [isLoading, setIsLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [reviewOpen, setReviewOpen] = useState(false);
   const [sendAbsenteeMessages, setSendAbsenteeMessages] = useState(true);
 
   // Date constants
@@ -183,6 +185,7 @@ export default function AttendanceRecordPage() {
   };
 
   const saveAttendance = async () => {
+    if (isSubmitting) return;
     if (!canAccessClass(await getClassAccess(), id)) {
       toast({ variant: 'destructive', title: 'Not allowed', description: 'You can only update attendance for your assigned classes.' });
       return;
@@ -242,12 +245,21 @@ export default function AttendanceRecordPage() {
       }
 
       toast({ variant: 'default', title: 'Success', description: 'Attendance saved successfully.' });
+      setReviewOpen(false);
     } catch (error) {
       console.error('Error saving:', error);
       toast({ variant: 'destructive', title: 'Error', description: error.message || 'Failed to save.' });
     } finally {
       setIsSubmitting(false);
     }
+  };
+
+  const reviewAttendance = () => {
+    if (attendanceData.some(a => a.status === 'Unmarked')) {
+      toast({ variant: 'destructive', title: 'Incomplete Attendance', description: 'Please mark all students as Present or Absent before saving.' });
+      return;
+    }
+    setReviewOpen(true);
   };
 
   /* ---------------- UI Render Helpers ---------------- */
@@ -517,18 +529,39 @@ export default function AttendanceRecordPage() {
           </div>
 
           <Button 
-            onClick={saveAttendance} 
+            onClick={reviewAttendance}
             disabled={isSubmitting}
             className="w-full md:w-auto rounded-full px-10 py-6 text-lg font-bold text-black dark:text-white shadow-xl shadow-blue-500/20 bg-gradient-to-r from-blue-600 via-indigo-600 to-violet-600 hover:from-blue-700 hover:via-indigo-700 hover:to-violet-700 transition-all active:scale-[0.98] border border-white/20"
           >
             {isSubmitting ? (
               <><Loader small className="mr-2" /> Saving...</>
             ) : (
-              <><Save className="mr-2 h-5 w-5" /> Save Attendance</>
+              <><Save className="mr-2 h-5 w-5" /> Review & Save</>
             )}
           </Button>
         </div>
       </div>
+      <Dialog open={reviewOpen} onOpenChange={open => { if (!isSubmitting) setReviewOpen(open); }}>
+        <DialogContent className="max-h-[85dvh] overflow-y-auto overscroll-contain rounded-2xl border-slate-200 bg-white text-slate-900 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100">
+          <DialogHeader>
+            <DialogTitle>Review absent students</DialogTitle>
+            <DialogDescription>{classData?.name || 'Class'} · {format(selectedDate, 'dd MMMM yyyy')} · {absentCount} absent</DialogDescription>
+          </DialogHeader>
+          <div className="rounded-xl border border-slate-200 dark:border-slate-700">
+            {absentCount ? <ul className="divide-y divide-slate-100 dark:divide-slate-800">{attendanceData.filter(record => record.status === 'Absent').map(record => (
+              <li key={record.studentid} className="flex items-start justify-between gap-3 px-4 py-3 text-sm">
+                <div><p className="font-semibold">{record.student.name || 'Unnamed student'}</p><p className="mt-0.5 text-slate-500 dark:text-slate-400">Father: {record.student.fathername || 'Not recorded'}</p></div>
+                <span className="shrink-0 text-xs text-slate-500">ID {record.studentid}</span>
+              </li>
+            ))}</ul> : <p className="p-5 text-center text-sm text-slate-500">No students are marked absent. Everyone is marked present.</p>}
+          </div>
+          <p className="text-xs text-slate-500 dark:text-slate-400">{sendAbsenteeMessages ? 'Absence notices will be queued for students with a mobile number.' : 'Parent notifications are turned off.'}</p>
+          <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+            <Button variant="outline" disabled={isSubmitting} onClick={() => setReviewOpen(false)}>Back to edit</Button>
+            <Button disabled={isSubmitting} onClick={saveAttendance} className="bg-indigo-600 text-white hover:bg-indigo-700">{isSubmitting ? 'Saving…' : 'Confirm & save attendance'}</Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
