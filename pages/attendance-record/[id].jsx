@@ -542,23 +542,23 @@ export default function AttendanceRecordPage() {
         </div>
       </div>
       <Dialog open={reviewOpen} onOpenChange={open => { if (!isSubmitting) setReviewOpen(open); }}>
-        <DialogContent className="max-h-[85dvh] overflow-y-auto overscroll-contain rounded-2xl border-slate-200 bg-white text-slate-900 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100">
-          <DialogHeader>
-            <DialogTitle>Review absent students</DialogTitle>
-            <DialogDescription>{classData?.name || 'Class'} · {format(selectedDate, 'dd MMMM yyyy')} · {absentCount} absent</DialogDescription>
+        <DialogContent className="top-[calc(50%+42px)] z-[110] flex max-h-[min(30rem,calc(100dvh-110px))] w-[calc(100%-2rem)] max-w-md flex-col gap-3 overflow-hidden rounded-2xl border-slate-200 bg-white p-4 text-slate-900 shadow-2xl dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100 sm:p-5">
+          <DialogHeader className="shrink-0 pr-6 text-left">
+            <DialogTitle className="text-lg">Review absences</DialogTitle>
+            <DialogDescription>{classData?.name || 'Class'} · {format(selectedDate, 'dd MMM yyyy')} · {absentCount} absent</DialogDescription>
           </DialogHeader>
-          <div className="rounded-xl border border-slate-200 dark:border-slate-700">
+          <div className="min-h-0 overflow-y-auto overscroll-contain rounded-xl border border-slate-200 dark:border-slate-700">
             {absentCount ? <ul className="divide-y divide-slate-100 dark:divide-slate-800">{attendanceData.filter(record => record.status === 'Absent').map(record => (
-              <li key={record.studentid} className="flex items-start justify-between gap-3 px-4 py-3 text-sm">
+              <li key={record.studentid} className="flex items-start justify-between gap-3 px-3 py-2.5 text-sm">
                 <div><p className="font-semibold">{record.student.name || 'Unnamed student'}</p><p className="mt-0.5 text-slate-500 dark:text-slate-400">Father: {record.student.fathername || 'Not recorded'}</p></div>
                 <span className="shrink-0 text-xs text-slate-500">ID {record.studentid}</span>
               </li>
             ))}</ul> : <p className="p-5 text-center text-sm text-slate-500">No students are marked absent. Everyone is marked present.</p>}
           </div>
           <p className="text-xs text-slate-500 dark:text-slate-400">{sendAbsenteeMessages ? 'Absence notices will be queued for students with a mobile number.' : 'Parent notifications are turned off.'}</p>
-          <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
-            <Button variant="outline" disabled={isSubmitting} onClick={() => setReviewOpen(false)}>Back to edit</Button>
-            <Button disabled={isSubmitting} onClick={saveAttendance} className="bg-indigo-600 text-white hover:bg-indigo-700">{isSubmitting ? 'Saving…' : 'Confirm & save attendance'}</Button>
+          <div className="flex shrink-0 gap-2">
+            <Button variant="outline" disabled={isSubmitting} onClick={() => setReviewOpen(false)} className="flex-1">Edit</Button>
+            <Button disabled={isSubmitting} onClick={saveAttendance} className="flex-[2] bg-indigo-600 text-white hover:bg-indigo-700">{isSubmitting ? 'Saving…' : 'Confirm & save'}</Button>
           </div>
         </DialogContent>
       </Dialog>
