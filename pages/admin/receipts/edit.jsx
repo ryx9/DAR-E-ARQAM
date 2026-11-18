@@ -47,7 +47,7 @@ function EditReceiptContent() {
         .from('fee_payments')
         .select(
           `
-          id, invoice_id, invoice_detail_id, amount, payment_method, notes, paid_at,
+          id, invoice_id, invoice_detail_id, amount, payment_method, notes, paid_at, cashier_profile_id,
           fee_invoice_details ( id, fee_type, amount ),
           fee_invoices ( id, total_amount, students ( studentid, name, fathername ) )
         `
@@ -119,6 +119,7 @@ function EditReceiptContent() {
           payment_method: payment.payment_method,
           notes: payment.notes || null,
           paid_at: paidAt,
+          cashier_profile_id: payment.cashier_profile_id,
         }))
       );
       if (error) throw error;

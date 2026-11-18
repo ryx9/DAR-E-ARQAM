@@ -223,6 +223,22 @@ export default function PayInvoiceContent() {
     setSubmitting(true);
 
     try {
+      const {
+        data: { user },
+        error: userError,
+      } = await supabase.auth.getUser();
+      if (userError || !user)
+        throw new Error('Your cashier session could not be verified. Please sign in again.');
+      const { data: cashier, error: cashierError } = await supabase
+        .from('profiles')
+        .select('id,name,email')
+        .eq('id', user.id)
+        .single();
+      if (cashierError || !cashier)
+        throw new Error(
+          'Your cashier profile could not be found. Please contact an administrator.'
+        );
+      const cashierName = cashier.name || cashier.email || 'Accounts Office';
       const paidAt = isSuperAdmin
         ? new Date(`${paymentDate}T12:00:00`).toISOString()
         : new Date().toISOString();
@@ -236,6 +252,7 @@ export default function PayInvoiceContent() {
             payment_method: paymentMethod,
             notes: notes,
             paid_at: paidAt,
+            cashier_profile_id: cashier.id,
           });
         }
       });
@@ -282,6 +299,7 @@ export default function PayInvoiceContent() {
         receiptText += `━━━━━━━━━━━━━━━━━━━━\n\n`;
         receiptText += `👤 *Student:* ${student?.name}\n`;
         receiptText += `🆔 *DAS NUMBER:* ${student?.studentid}\n`;
+        receiptText += `🏫 *Class:* ${student?.classes?.name || 'N/A'}\n`;
         receiptText += `📄 *Invoice #:* ${invoiceId}\n\n`;
 
         receiptText += `*FEE BREAKDOWN (PAID)*\n`;
@@ -299,6 +317,7 @@ export default function PayInvoiceContent() {
 
         const newBalance = globalBalance - totalPayingNow;
         receiptText += ` *Remaining Balance:* ${newBalance.toLocaleString()} PKR\n\n`;
+        receiptText += `Received by: ${cashierName}\n\n`;
         receiptText += `_ACCOUNTS OFFICE_ \n DAR-E-ARQAM SCHOOL`;
 
         const parentPhone = student?.mobilenumber || '00000000000';
@@ -330,6 +349,7 @@ export default function PayInvoiceContent() {
         totalPaidNow: totalPayingNow,
         balanceAfterPayment: globalBalance - totalPayingNow,
         receiptDate: paidAt,
+        cashierName,
       });
 
       setTimeout(() => router.push('/admin/invoices'), 1000);

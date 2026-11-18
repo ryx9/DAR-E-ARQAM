@@ -75,12 +75,64 @@ export default function ActivityRichEditor({ value, onChange, placeholder }) {
     emit();
   };
   const addTable = () => {
+    const rows = Number(window.prompt('Number of rows (including the heading row)', '3'));
+    const columns = Number(window.prompt('Number of columns', '3'));
+    if (
+      !Number.isInteger(rows) ||
+      !Number.isInteger(columns) ||
+      rows < 2 ||
+      columns < 1 ||
+      rows > 20 ||
+      columns > 10
+    ) {
+      window.alert('Choose 2–20 rows and 1–10 columns.');
+      return;
+    }
+    const headings = Array.from(
+      { length: columns },
+      (_, index) => `<th>Column ${index + 1}</th>`
+    ).join('');
+    const body = Array.from(
+      { length: rows - 1 },
+      () => `<tr>${Array.from({ length: columns }, () => '<td>Detail</td>').join('')}</tr>`
+    ).join('');
     editorRef.current?.focus();
     document.execCommand(
       'insertHTML',
       false,
-      '<table><thead><tr><th>Column 1</th><th>Column 2</th><th>Column 3</th></tr></thead><tbody><tr><td>Detail</td><td>Detail</td><td>Detail</td></tr><tr><td>Detail</td><td>Detail</td><td>Detail</td></tr></tbody></table><p><br /></p>'
+      `<table><thead><tr>${headings}</tr></thead><tbody>${body}</tbody></table><p><br /></p>`
     );
+    emit();
+  };
+  const activeTable = () => {
+    const node = window.getSelection()?.anchorNode;
+    const element = node?.nodeType === Node.TEXT_NODE ? node.parentElement : node;
+    return element?.closest?.('table');
+  };
+  const resizeTable = (axis, direction) => {
+    const table = activeTable();
+    if (!table) return window.alert('Place the cursor inside the table you want to resize.');
+    if (axis === 'row') {
+      if (direction < 0) {
+        if (table.rows.length <= 2)
+          return window.alert('A table needs a heading row and at least one detail row.');
+        table.deleteRow(table.rows.length - 1);
+      } else {
+        const row = table.insertRow(-1);
+        const cells = table.rows[0].cells.length;
+        for (let index = 0; index < cells; index++) row.insertCell().textContent = 'Detail';
+      }
+    } else if (direction < 0) {
+      if (table.rows[0].cells.length <= 1)
+        return window.alert('A table needs at least one column.');
+      [...table.rows].forEach(row => row.deleteCell(row.cells.length - 1));
+    } else {
+      [...table.rows].forEach((row, index) => {
+        const cell = row.insertCell(-1);
+        if (index === 0) cell.outerHTML = '<th>Column</th>';
+        else cell.textContent = 'Detail';
+      });
+    }
     emit();
   };
   const addLink = () => {
@@ -135,6 +187,42 @@ export default function ActivityRichEditor({ value, onChange, placeholder }) {
         />
         <ToolButton label="Code block" icon={Code2} onClick={() => setBlock('pre')} />
         <ToolButton label="Insert table" icon={Table2} onClick={addTable} />
+        <button
+          type="button"
+          title="Add table row"
+          className={toolClass}
+          onMouseDown={event => event.preventDefault()}
+          onClick={() => resizeTable('row', 1)}
+        >
+          +R
+        </button>
+        <button
+          type="button"
+          title="Remove table row"
+          className={toolClass}
+          onMouseDown={event => event.preventDefault()}
+          onClick={() => resizeTable('row', -1)}
+        >
+          −R
+        </button>
+        <button
+          type="button"
+          title="Add table column"
+          className={toolClass}
+          onMouseDown={event => event.preventDefault()}
+          onClick={() => resizeTable('column', 1)}
+        >
+          +C
+        </button>
+        <button
+          type="button"
+          title="Remove table column"
+          className={toolClass}
+          onMouseDown={event => event.preventDefault()}
+          onClick={() => resizeTable('column', -1)}
+        >
+          −C
+        </button>
         <ToolButton label="Divider" icon={Minus} onClick={addDivider} />
         <ToolButton label="Link" icon={Link2} onClick={addLink} />
       </div>

@@ -89,6 +89,10 @@ function FeeReceiptsContent() {
           fee_invoice_details (
             fee_type
           ),
+          cashier:profiles!fee_payments_cashier_profile_id_fkey (
+            name,
+            email
+          ),
           fee_invoices${joinType} (
             id,
             invoice_date,
@@ -134,7 +138,8 @@ function FeeReceiptsContent() {
 
       (data || []).forEach(rcpt => {
         const dateStr = new Date(rcpt.paid_at).toLocaleDateString();
-        const key = `${rcpt.invoice_id}_${dateStr}`;
+        // A receipt belongs to the cashier who entered it; never merge different cashiers.
+        const key = `${rcpt.invoice_id}_${dateStr}_${rcpt.cashier_profile_id || 'legacy'}`;
 
         if (!groupedMap.has(key)) {
           const newGroup = {
@@ -158,6 +163,7 @@ function FeeReceiptsContent() {
       groupedData.forEach(g => {
         g.displayFeeLabel = Array.from(g.feeLabels).join(', ');
         g.displayMethod = Array.from(g.paymentMethods).join(', ');
+        g.cashierName = g.cashier?.name || g.cashier?.email || '---';
       });
 
       setReceipts(groupedData);
@@ -235,6 +241,7 @@ function FeeReceiptsContent() {
         totalPaidNow: groupedPayment.amount,
         balanceAfterPayment: balance,
         receiptDate: groupedPayment.paid_at, // A: actual payment date
+        cashierName: groupedPayment.cashierName,
       });
 
       toast({ title: 'Receipt generated' });
@@ -437,13 +444,14 @@ function FeeReceiptsContent() {
                     <th className={thStyle}>Payment For</th>
                     <th className={`${thStyle} text-right`}>Total Paid</th>
                     <th className={`${thStyle} text-center`}>Method</th>
+                    <th className={thStyle}>Cashier</th>
                     <th className={`${thStyle} text-right pr-8`}>Actions</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100 dark:divide-white/5">
                   {loading ? (
                     <tr>
-                      <td colSpan="6" className="h-64">
+                      <td colSpan="7" className="h-64">
                         <div className="flex flex-col items-center justify-center h-full gap-3">
                           <Loader small={false} />
                           <p className="text-sm text-slate-500 dark:text-slate-400">
@@ -454,7 +462,7 @@ function FeeReceiptsContent() {
                     </tr>
                   ) : receipts.length === 0 ? (
                     <tr>
-                      <td colSpan="6" className="h-64 text-center">
+                      <td colSpan="7" className="h-64 text-center">
                         <div className="flex flex-col items-center justify-center opacity-60">
                           <Filter className="w-12 h-12 text-slate-300 dark:text-slate-600 mb-2" />
                           <p className="text-lg font-medium text-slate-500 dark:text-slate-400">
@@ -531,6 +539,12 @@ function FeeReceiptsContent() {
                           <td className="px-6 py-4 text-center">
                             <span className="inline-flex items-center px-2.5 py-0.5 rounded text-[10px] uppercase font-bold bg-slate-100 text-slate-600 border border-slate-200 dark:bg-white/10 dark:text-slate-300 dark:border-white/5">
                               {rcpt.displayMethod}
+                            </span>
+                          </td>
+
+                          <td className="px-6 py-4">
+                            <span className="text-sm font-medium text-slate-700 dark:text-slate-200">
+                              {rcpt.cashierName || '---'}
                             </span>
                           </td>
 

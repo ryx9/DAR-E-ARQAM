@@ -174,6 +174,7 @@ const DashboardHome = () => {
   // Page A State
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [userEmail, setUserEmail] = useState<string>('');
+  const [userName, setUserName] = useState<string>('');
   const [userRole, setUserRole] = useState<string | null>(null); // NEW: Track UserRole
   const router = useRouter();
 
@@ -207,9 +208,16 @@ const DashboardHome = () => {
     if (data.user) {
       setIsLoggedIn(true);
       setUserEmail(data.user.email || '');
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('name')
+        .eq('id', data.user.id)
+        .maybeSingle();
+      setUserName(profile?.name || data.user.email?.split('@')[0] || '');
     } else {
       setIsLoggedIn(false);
       setUserEmail('');
+      setUserName('');
     }
   };
 
@@ -363,7 +371,7 @@ const DashboardHome = () => {
           <h1 className="text-2xl md:text-3xl font-extrabold text-slate-900 dark:text-white mb-1">
             {isLoggedIn ? (
               <div className="flex flex-col gap-1">
-                <span>Welcome Back</span>
+                <span>Welcome back{userName ? `, ${userName}` : ''}</span>
                 {userEmail && (
                   <span className="text-sm md:text-lg text-indigo-500 font-medium">
                     {userEmail}

@@ -1,183 +1,246 @@
-// pages/das.js
 import { useState } from 'react';
-import { supabase } from '../utils/supabaseClient';
 import Head from 'next/head';
+import {
+  CalendarDays,
+  CalendarRange,
+  CheckCircle2,
+  Clock3,
+  FileText,
+  Loader2,
+  LockKeyhole,
+  Search,
+  ShieldCheck,
+  Sparkles,
+} from 'lucide-react';
+import { supabase } from '../utils/supabaseClient';
 
-export default function DasPage() {
-  const [das, setDas] = useState('');
-  const [student, setStudent] = useState(null);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState('');
+const fmt = value =>
+  new Date(`${value}T00:00:00`).toLocaleDateString('en-GB', {
+    day: '2-digit',
+    month: 'short',
+    year: 'numeric',
+  });
 
-  const fetchStudent = async () => {
-    if (!das.trim()) {
-      setError('Please enter a valid DAS number.');
-      return;
-    }
+const day = value =>
+  new Date(`${value}T00:00:00`).toLocaleDateString('en-GB', {
+    weekday: 'long',
+  });
 
+export default function Datesheets() {
+  const [das, setDas] = useState(''),
+    [student, setStudent] = useState(null),
+    [batches, setBatches] = useState([]),
+    [loading, setLoading] = useState(false),
+    [error, setError] = useState('');
+  async function search() {
+    if (!das.trim()) return setError('Enter your DAS number to view published datesheets.');
     setLoading(true);
     setError('');
     setStudent(null);
-
-    const { data, error } = await supabase
-      .from('students')
-      .select('*')
-      .eq('studentid', das)
-      .single();
-
-    if (error || !data) {
-      setError('Student not found. Please check your DAS number.');
-    } else {
-      setStudent(data);
+    setBatches([]);
+    try {
+      const { data: profile, error: studentError } = await supabase
+        .from('active_students')
+        .select('studentid,name,fathername,class_id,classes(name)')
+        .eq('studentid', das.trim())
+        .maybeSingle();
+      if (studentError) throw studentError;
+      if (!profile) throw new Error('No active student was found with this DAS number.');
+      const { data: active, error: batchError } = await supabase
+        .from('datesheet_batches')
+        .select(
+          'id,title,exam_start_date,exam_end_date,invoice_start_date,invoice_end_date,datesheet_batch_classes!inner(class_id),datesheet_batch_tests(tests(id,class_id,subject,test_name,date))'
+        )
+        .eq('is_active', true)
+        .eq('datesheet_batch_classes.class_id', profile.class_id)
+        .order('exam_start_date');
+      if (batchError) throw batchError;
+      setStudent(profile);
+      setBatches(
+        (active || []).map(batch => ({
+          ...batch,
+          tests: (batch.datesheet_batch_tests || [])
+            .map(row => row.tests)
+            .filter(test => test && String(test.class_id) === String(profile.class_id))
+            .sort((a, b) => a.date.localeCompare(b.date)),
+        }))
+      );
+    } catch (caught) {
+      setError(caught.message || 'Unable to load datesheets.');
+    } finally {
+      setLoading(false);
     }
-
-    setLoading(false);
-  };
-
+  }
   return (
     <>
       <Head>
-        <title>Exam Datesheet</title>
+        <title>Datesheets | DAR-E-ARQAM</title>
       </Head>
-
-      {/* Forced Light Mode & Compacter Padding */}
-      <div 
-        className="min-h-screen bg-slate-50 flex flex-col items-center py-8 px-4 sm:px-6 font-sans text-slate-900"
-        style={{ colorScheme: 'light' }}
-      >
-        
-        {/* Header Section */}
-        <div className="text-center mb-8 mt-4">
-          <h1 className="text-3xl md:text-4xl font-bold text-blue-950 tracking-tight mb-2">
-            Exam Datesheet
-          </h1>
-          <p className="text-slate-500 text-base max-w-lg mx-auto">
-            Enter your DAS number to view your exam schedule and instructions.
-          </p>
-        </div>
-
-        {/* Main Card (Sleeker, max-w-3xl instead of 4xl) */}
-        <div className="w-full max-w-3xl bg-white rounded-xl shadow-md border border-slate-200 overflow-hidden">
-          
-          {/* Search Section */}
-          <div className="p-5 sm:p-6 bg-white border-b border-slate-100 flex flex-col sm:flex-row gap-3 items-center justify-center">
-            <input
-              type="text"
-              placeholder="Enter DAS Number (e.g., 12345)"
-              value={das}
-              onChange={(e) => setDas(e.target.value)}
-              onKeyDown={(e) => e.key === 'Enter' && fetchStudent()}
-              className="w-full sm:w-2/3 px-4 py-2.5 bg-slate-50 rounded-lg border border-slate-200 focus:bg-white focus:border-blue-800 focus:ring-2 focus:ring-blue-800/20 text-base font-medium text-slate-900 placeholder-slate-400 outline-none transition-all duration-200"
-            />
-            <button
-              onClick={fetchStudent}
-              disabled={loading}
-              className="w-full sm:w-auto px-6 py-2.5 font-semibold rounded-lg text-green shadow-sm hover:bg-blue-950 hover:shadow disabled:opacity-70 transition-all duration-200 text-base whitespace-nowrap"
-            >
-              {loading ? (
-                <span className="flex items-center justify-center gap-2 text-white">
-                  <svg className="animate-spin h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
-                  Fetching...
-                </span>
-              ) : (
-                'Get Datesheet'
+      <main className="min-h-screen overflow-hidden bg-slate-950 px-4 py-8 text-slate-900 sm:py-12">
+        <div className="pointer-events-none fixed inset-0 bg-[radial-gradient(circle_at_15%_0%,rgba(99,102,241,.42),transparent_28%),radial-gradient(circle_at_85%_10%,rgba(20,184,166,.22),transparent_25%),linear-gradient(145deg,#111827,#172554_48%,#0f172a)]" />
+        <div className="relative mx-auto max-w-5xl">
+          <header className="mb-7 text-center text-white sm:mb-10">
+            <div className="mx-auto mb-5 flex h-16 w-16 items-center justify-center rounded-[1.35rem] border border-white/20 bg-white/10 shadow-2xl shadow-indigo-950/50 backdrop-blur">
+              <CalendarDays className="h-8 w-8 text-indigo-100" />
+            </div>
+            <p className="text-xs font-bold uppercase tracking-[.28em] text-indigo-200">
+              DAR-E-ARQAM School
+            </p>
+            <h1 className="mt-3 text-3xl font-bold tracking-tight sm:text-5xl">Exam datesheets</h1>
+            <p className="mx-auto mt-3 max-w-xl text-sm leading-6 text-slate-300 sm:text-base">
+              Your child’s verified examination timetable, available as soon as the school publishes
+              it.
+            </p>
+          </header>
+          <section className="overflow-hidden rounded-[2rem] border border-white/30 bg-white shadow-2xl shadow-slate-950/40">
+            <div className="bg-gradient-to-r from-indigo-50 via-white to-teal-50 p-5 sm:p-7">
+              <div className="mb-4 flex items-center gap-2 text-xs font-semibold uppercase tracking-[.16em] text-indigo-700">
+                <ShieldCheck className="h-4 w-4" /> Secure student lookup
+              </div>
+              <div className="flex flex-col gap-3 sm:flex-row">
+                <div className="relative flex-1">
+                  <Search className="absolute left-4 top-3.5 h-5 w-5 text-slate-400" />
+                  <input
+                    value={das}
+                    onChange={e => setDas(e.target.value)}
+                    onKeyDown={e => e.key === 'Enter' && search()}
+                    placeholder="Enter student DAS number"
+                    className="h-12 w-full rounded-xl border border-slate-200 bg-white pl-11 pr-4 text-sm font-medium outline-none transition placeholder:font-normal focus:border-indigo-500 focus:ring-4 focus:ring-indigo-100"
+                  />
+                </div>
+                <button
+                  onClick={search}
+                  disabled={loading}
+                  className="inline-flex h-12 items-center justify-center rounded-xl bg-indigo-600 px-6 text-sm font-semibold text-white shadow-lg shadow-indigo-200 transition hover:-translate-y-0.5 hover:bg-indigo-700 disabled:translate-y-0 disabled:opacity-60"
+                >
+                  {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : 'View timetable'}
+                </button>
+              </div>
+              {error && (
+                <p className="mt-4 rounded-xl border border-rose-100 bg-rose-50 px-4 py-3 text-sm font-medium text-rose-700">
+                  {error}
+                </p>
               )}
-            </button>
-          </div>
-
-          {/* Results Section */}
-          <div className="bg-[#F8FAFC] p-6 sm:p-8 min-h-[300px] flex flex-col items-center justify-center transition-all duration-300">
-            
-            {error && (
-              <div className="bg-red-50 text-red-700 px-4 py-3 rounded-lg text-sm font-medium w-full max-w-xl text-center border border-red-200 flex items-center justify-center gap-2">
-                <svg className="w-5 h-5 text-red-500 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
-                {error}
-              </div>
-            )}
-
-            {!loading && !error && !student && (
-              <div className="text-slate-400 flex flex-col items-center gap-3">
-                <svg className="w-12 h-12 text-slate-300" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg>
-                <p className="text-sm font-medium text-slate-500">Your datesheet will appear here.</p>
-              </div>
-            )}
-
+            </div>
             {student && (
-              <div className="w-full flex flex-col items-center animate-fadeIn">
-                <h2 className="text-xl font-bold text-slate-900 mb-5 self-start">
-                  Welcome, <span className="text-blue-700">{student.name}</span>
-                </h2>
-
-                {student.Clear ? (
-                  /* --- CLEARED STUDENT VIEW --- */
-                  <div className="w-full space-y-5">
-                    {/* Embedded PDF */}
-                    <div className="w-full rounded-xl overflow-hidden shadow-sm border border-slate-200 bg-slate-100">
-                      <iframe
-                        src="https://drive.google.com/file/d/1KIFdgr7Q9L8AbAFHH0dIx6LQfMHJp3iD/preview"
-                        className="w-full h-[65vh] min-h-[800px]"
-                        allow="autoplay"
-                        title="Student Datesheet"
-                      ></iframe>
-                    </div>
-
-                    {/* Instructions Panel - Compacter */}
-                    <div className="bg-blue-50/50 p-5 rounded-xl border border-blue-100 text-left">
-                      <div className="flex items-center gap-2.5 mb-3">
-                        <svg className="w-5 h-5 text-blue-800" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
-                        <h3 className="text-base font-bold text-blue-950">
-                          Important Exam Instructions
-                        </h3>
+              <div className="p-5 sm:p-7">
+                <div className="relative overflow-hidden rounded-2xl bg-slate-900 p-5 text-white shadow-xl sm:p-6">
+                  <div className="absolute -right-8 -top-10 h-36 w-36 rounded-full bg-indigo-500/30 blur-2xl" />
+                  <div className="relative flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                    <div className="flex items-center gap-4">
+                      <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-white/10 text-lg font-bold text-indigo-100">
+                        {student.name?.slice(0, 1)?.toUpperCase()}
                       </div>
-                      <ul className="grid sm:grid-cols-2 gap-x-6 gap-y-2 text-sm text-slate-700">
-                        <li className="flex items-start gap-2">
-                          <span className="text-blue-600 font-bold">•</span> No leaves entertained during exams.
-                        </li>
-                        <li className="flex items-start gap-2">
-                          <span className="text-blue-600 font-bold">•</span> Bring complete stationery.
-                        </li>
-                        <li className="flex items-start gap-2">
-                          <span className="text-blue-600 font-bold">•</span> Arrive on time; late arrivals strictly not allowed.
-                        </li>
-                        <li className="flex items-start gap-2">
-                          <span className="text-blue-600 font-bold">•</span> No retakes or make-up exams.
-                        </li>
-                      </ul>
+                      <div>
+                        <p className="text-xs font-semibold uppercase tracking-[.18em] text-indigo-200">
+                          Verified student
+                        </p>
+                        <h2 className="mt-1 text-xl font-semibold">{student.name}</h2>
+                        <p className="mt-1 text-sm text-slate-300">
+                          {student.classes?.name || 'Class'}{' '}
+                          <span className="mx-1.5 text-slate-500">•</span> DAS {student.studentid}
+                        </p>
+                      </div>
                     </div>
+                    <span className="inline-flex w-fit items-center gap-1.5 rounded-full bg-emerald-400/15 px-3 py-1.5 text-xs font-bold text-emerald-300">
+                      <CheckCircle2 className="h-3.5 w-3.5" /> Active record
+                    </span>
+                  </div>
+                </div>
+                {batches.length ? (
+                  <div className="mt-7 space-y-6">
+                    {batches.map(batch => (
+                      <article
+                        key={batch.id}
+                        className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm"
+                      >
+                        <div className="border-b border-indigo-100 bg-gradient-to-r from-indigo-600 via-indigo-600 to-violet-600 px-5 py-5 text-white sm:px-6">
+                          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                            <div>
+                              <p className="text-xs font-bold uppercase tracking-[.18em] text-indigo-200">
+                                Published examination
+                              </p>
+                              <h3 className="mt-1 text-xl font-semibold">{batch.title}</h3>
+                            </div>
+                            <div className="rounded-xl border border-white/15 bg-white/10 px-3 py-2 text-sm">
+                              <div className="flex items-center gap-1.5 font-semibold">
+                                <CalendarRange className="h-4 w-4" /> {fmt(batch.exam_start_date)} –{' '}
+                                {fmt(batch.exam_end_date)}
+                              </div>
+                              <p className="mt-0.5 text-xs text-indigo-100">
+                                {batch.tests.length} paper{batch.tests.length === 1 ? '' : 's'}{' '}
+                                scheduled
+                              </p>
+                            </div>
+                          </div>
+                        </div>
+                        {batch.tests.length ? (
+                          <ol className="divide-y divide-slate-100">
+                            {batch.tests.map((test, index) => (
+                              <li
+                                key={test.id}
+                                className="flex items-center gap-3 px-5 py-4 transition hover:bg-indigo-50/50 sm:gap-5 sm:px-6"
+                              >
+                                <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-indigo-50 text-sm font-bold text-indigo-600">
+                                  {String(index + 1).padStart(2, '0')}
+                                </span>
+                                <div className="min-w-0 flex-1">
+                                  <p className="truncate font-semibold text-slate-800">
+                                    {test.test_name || test.subject}
+                                  </p>
+                                  <p className="mt-0.5 text-xs font-medium text-slate-500">
+                                    {test.subject}
+                                  </p>
+                                </div>
+                                <div className="text-right">
+                                  <p className="text-sm font-bold text-slate-800">
+                                    {fmt(test.date)}
+                                  </p>
+                                  <p className="mt-0.5 text-xs font-medium text-indigo-600">
+                                    {day(test.date)}
+                                  </p>
+                                </div>
+                              </li>
+                            ))}
+                          </ol>
+                        ) : (
+                          <div className="p-7 text-center text-sm text-slate-500">
+                            The timetable is being finalised. Please check again shortly.
+                          </div>
+                        )}
+                        <div className="flex items-center gap-2 border-t border-slate-100 bg-slate-50 px-5 py-3 text-xs text-slate-500 sm:px-6">
+                          <Sparkles className="h-3.5 w-3.5 text-amber-500" /> Please arrive before
+                          the reporting time with required stationery.
+                        </div>
+                      </article>
+                    ))}
                   </div>
                 ) : (
-                  /* --- PENDING DUES VIEW --- */
-                  <div className="w-full max-w-xl bg-white border border-red-200 rounded-xl shadow-sm overflow-hidden text-left">
-                    <div className="bg-red-50 px-6 py-4 border-b border-red-100 flex items-center gap-3">
-                      <svg className="w-6 h-6 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path></svg>
-                      <div>
-                        <h3 className="text-lg font-bold text-red-900">Action Required: Pending Dues</h3>
-                      </div>
-                    </div>
-                    
-                    <div className="p-6 space-y-5">
-                      <p className="text-slate-700 text-sm leading-relaxed">
-                        You currently have pending dues. Please obtain clearance from the <strong className="text-slate-900 font-semibold bg-slate-100 px-1.5 py-0.5 rounded">Accounts Office</strong></p>
-                      
-                      <div className="bg-blue-50 border border-blue-100 p-4 rounded-lg flex items-start gap-3">
-                        <svg className="w-5 h-5 text-blue-700 shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg>
-                        <div>
-                          <h4 className="text-blue-950 font-bold text-sm mb-1">First Exam Reminder</h4>
-                          <p className="text-blue-900 text-sm">
-                            Your first exam is on <strong className="font-semibold">Monday, 11 May 2026</strong>. 
-                            <br className="sm:hidden" />
-                            Subject: <strong className="font-semibold">Mathematics</strong>.
-                          </p>
-                        </div>
-                      </div>
-                    </div>
+                  <div className="mt-7 rounded-2xl border border-dashed border-slate-300 bg-slate-50 p-10 text-center">
+                    <LockKeyhole className="mx-auto h-8 w-8 text-slate-400" />
+                    <h3 className="mt-4 font-semibold text-slate-800">
+                      No published datesheets yet
+                    </h3>
+                    <p className="mx-auto mt-2 max-w-sm text-sm leading-6 text-slate-500">
+                      The school has not activated an examination timetable for this class. It will
+                      appear here as soon as it is published.
+                    </p>
                   </div>
                 )}
               </div>
             )}
-          </div>
+            {!student && !loading && !error && (
+              <div className="p-10 text-center text-slate-400">
+                <FileText className="mx-auto h-9 w-9" />
+                <p className="mt-3 text-sm">Enter a DAS number to view a published timetable.</p>
+              </div>
+            )}
+          </section>
+          <p className="mt-5 text-center text-xs text-slate-400">
+            For examination queries, please contact the school office.
+          </p>
         </div>
-      </div>
+      </main>
     </>
   );
 }

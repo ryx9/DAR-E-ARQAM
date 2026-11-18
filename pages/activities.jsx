@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState, useTransition } from 'react';
+import Link from 'next/link';
 import { supabase } from '../utils/supabaseClient';
 import { getClassAccess } from '../utils/classAccess';
 import Navbar from '../components/Navbar';
@@ -20,6 +21,7 @@ import { downloadActivityCalendar, downloadActivityReport } from '../utils/activ
 
 const blankForm = () => ({
   title: '',
+  status: 'planned',
   description: '',
   start_date: '',
   end_date: '',
@@ -28,6 +30,28 @@ const blankForm = () => ({
   responsible_profile: '',
   classIds: [],
 });
+const STATUS_OPTIONS = {
+  planned: {
+    label: 'Planned',
+    className: 'bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-200',
+  },
+  confirmed: {
+    label: 'Confirmed',
+    className: 'bg-blue-50 text-blue-700 dark:bg-blue-950/40 dark:text-blue-300',
+  },
+  in_progress: {
+    label: 'In progress',
+    className: 'bg-amber-50 text-amber-700 dark:bg-amber-950/40 dark:text-amber-300',
+  },
+  completed: {
+    label: 'Completed',
+    className: 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300',
+  },
+  cancelled: {
+    label: 'Cancelled',
+    className: 'bg-red-50 text-red-700 dark:bg-red-950/40 dark:text-red-300',
+  },
+};
 const formatDate = value =>
   value
     ? new Date(`${value}T00:00:00`).toLocaleDateString('en-GB', {
@@ -120,7 +144,7 @@ export default function Activities() {
     const { data, error } = await supabase
       .from('school_activities')
       .select(
-        'id, title, description, start_date, end_date, venue, responsible_name, responsible_profile, created_at, school_activity_classes(class_id, classes(id, name))'
+        'id, title, status, description, start_date, end_date, venue, responsible_name, responsible_profile, created_at, school_activity_classes(class_id, classes(id, name))'
       )
       .order('start_date', { ascending: true });
     if (error) throw error;
@@ -152,6 +176,35 @@ export default function Activities() {
       ),
     [activities, startDate, endDate]
   );
+  const activityGroups = useMemo(() => {
+    const today = new Date().toLocaleDateString('en-CA');
+    const timing = activity => {
+      if (activity.status === 'completed' || activity.status === 'cancelled') return 'past';
+      if (activity.start_date > today) return 'future';
+      if ((activity.end_date || activity.start_date) < today) return 'past';
+      return 'current';
+    };
+    return [
+      {
+        key: 'current',
+        title: 'Current activities',
+        subtitle: 'Happening now',
+        items: filteredActivities.filter(activity => timing(activity) === 'current'),
+      },
+      {
+        key: 'future',
+        title: 'Upcoming activities',
+        subtitle: 'Scheduled ahead',
+        items: filteredActivities.filter(activity => timing(activity) === 'future'),
+      },
+      {
+        key: 'past',
+        title: 'Past & closed activities',
+        subtitle: 'Completed, cancelled or finished',
+        items: filteredActivities.filter(activity => timing(activity) === 'past'),
+      },
+    ];
+  }, [filteredActivities]);
   const updateForm = (key, value) => setForm(previous => ({ ...previous, [key]: value }));
   const toggleClass = classId =>
     setForm(previous => ({
@@ -177,6 +230,7 @@ export default function Activities() {
         const { data: auth } = await supabase.auth.getUser();
         const payload = {
           title: form.title.trim(),
+          status: form.status,
           description: form.description.trim() || null,
           start_date: form.start_date,
           end_date: form.end_date || null,
@@ -224,6 +278,7 @@ export default function Activities() {
     setEditingId(activity.id);
     setForm({
       title: activity.title || '',
+      status: activity.status || 'planned',
       description: activity.description || '',
       start_date: activity.start_date || '',
       end_date: activity.end_date || '',
@@ -315,7 +370,7 @@ export default function Activities() {
               )}
             </div>
             <form onSubmit={saveActivity} className="p-5 grid grid-cols-1 md:grid-cols-12 gap-4">
-              <div className="md:col-span-5">
+              <div className="md:col-span-4">
                 <label className={label}>Activity title</label>
                 <Input
                   required
@@ -325,7 +380,7 @@ export default function Activities() {
                   placeholder="e.g. Science Exhibition"
                 />
               </div>
-              <div className="md:col-span-3">
+              <div className="md:col-span-2">
                 <label className={label}>Start date</label>
                 <Input
                   required
@@ -335,7 +390,7 @@ export default function Activities() {
                   className={`${input} dark:[color-scheme:dark]`}
                 />
               </div>
-              <div className="md:col-span-3">
+              <div className="md:col-span-2">
                 <label className={label}>End date</label>
                 <Input
                   type="date"
@@ -343,6 +398,20 @@ export default function Activities() {
                   onChange={e => updateForm('end_date', e.target.value)}
                   className={`${input} dark:[color-scheme:dark]`}
                 />
+              </div>
+              <div className="md:col-span-3">
+                <label className={label}>Event status</label>
+                <select
+                  className={`${input} h-10 px-3`}
+                  value={form.status}
+                  onChange={e => updateForm('status', e.target.value)}
+                >
+                  {Object.entries(STATUS_OPTIONS).map(([value, option]) => (
+                    <option key={value} value={value}>
+                      {option.label}
+                    </option>
+                  ))}
+                </select>
               </div>
               <div className="md:col-span-1 flex items-end">
                 <Button
@@ -495,13 +564,13 @@ export default function Activities() {
             </Button>
           </div>
           <p className="mt-3 text-xs text-gray-500 dark:text-slate-400">
-            The landscape report starts with an all-class colour-coded calendar, followed by one
-            calendar page for every visible class.
+            The landscape report provides a spacious colour-coded overview for each month, followed
+            by dedicated monthly pages for every visible class.
           </p>
         </section>
         <section className={glassCard}>
           <div className="p-4 border-b border-gray-200 dark:border-white/10">
-            <h2 className="font-semibold">Scheduled activities</h2>
+            <h2 className="font-semibold">Activity timeline</h2>
             <p className="text-sm text-gray-500 dark:text-slate-400">
               {filteredActivities.length} activity{filteredActivities.length === 1 ? '' : 'ies'} in
               view.
@@ -512,52 +581,81 @@ export default function Activities() {
               <Loader2 className="h-8 w-8 animate-spin text-blue-500" />
             </div>
           ) : filteredActivities.length ? (
-            <div className="divide-y divide-gray-100 dark:divide-white/5">
-              {filteredActivities.map(activity => (
-                <article
-                  key={activity.id}
-                  className="p-5 flex flex-col lg:flex-row lg:items-center gap-4 hover:bg-gray-50/70 dark:hover:bg-white/[.02]"
-                >
-                  <div className="flex-1 min-w-0">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <h3 className="font-semibold text-lg">{activity.title}</h3>
-                      <span className="rounded-full bg-blue-50 px-2.5 py-1 text-xs font-medium text-blue-700 dark:bg-blue-950/40 dark:text-blue-300">
-                        {activity.classNames.join(', ') || 'No classes'}
-                      </span>
-                    </div>
-                    <p className="mt-1 text-sm text-gray-500 dark:text-slate-400">
-                      {formatDate(activity.start_date)}
-                      {activity.end_date && activity.end_date !== activity.start_date
-                        ? ` — ${formatDate(activity.end_date)}`
-                        : ''}
-                      {activity.venue ? ` · ${activity.venue}` : ''}
-                      {activity.responsible_name ? ` · ${activity.responsible_name}` : ''}
-                    </p>
-                    {activity.description && (
-                      <div
-                        className="activity-rich-content mt-3 text-sm text-gray-700 dark:text-slate-300"
-                        dangerouslySetInnerHTML={{ __html: activity.description }}
-                      />
-                    )}
-                  </div>
-                  <div className="flex gap-2 shrink-0">
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={() => downloadActivityReport(activity)}
+            <div>
+              {activityGroups.map(
+                group =>
+                  group.items.length > 0 && (
+                    <section
+                      key={group.key}
+                      className="border-b border-gray-100 last:border-b-0 dark:border-white/5"
                     >
-                      <FileText className="h-4 w-4 mr-1.5" />
-                      Brief
-                    </Button>
-                    {canManage && (
-                      <Button size="sm" variant="outline" onClick={() => editActivity(activity)}>
-                        <Edit3 className="h-4 w-4 mr-1.5" />
-                        Edit
-                      </Button>
-                    )}
-                  </div>
-                </article>
-              ))}
+                      <div className="bg-gray-50/70 px-5 py-3 dark:bg-white/[.025]">
+                        <h3 className="font-semibold text-sm">{group.title}</h3>
+                        <p className="text-xs text-gray-500 dark:text-slate-400">
+                          {group.subtitle} · {group.items.length}
+                        </p>
+                      </div>
+                      <div className="divide-y divide-gray-100 dark:divide-white/5">
+                        {group.items.map(activity => {
+                          const status = STATUS_OPTIONS[activity.status] || STATUS_OPTIONS.planned;
+                          return (
+                            <article
+                              key={activity.id}
+                              className="p-4 flex flex-col sm:flex-row sm:items-center gap-3 hover:bg-gray-50/70 dark:hover:bg-white/[.02]"
+                            >
+                              <div className="flex-1 min-w-0">
+                                <div className="flex flex-wrap items-center gap-2">
+                                  <Link
+                                    href={`/activities/${activity.id}`}
+                                    className="font-semibold text-lg transition-colors hover:text-blue-600 dark:hover:text-blue-400"
+                                  >
+                                    {activity.title}
+                                  </Link>
+                                  <span
+                                    className={`rounded-full px-2.5 py-1 text-xs font-semibold ${status.className}`}
+                                  >
+                                    {status.label}
+                                  </span>
+                                </div>
+                                <p className="mt-1 text-sm text-gray-500 dark:text-slate-400">
+                                  {formatDate(activity.start_date)}
+                                  {activity.end_date && activity.end_date !== activity.start_date
+                                    ? ` — ${formatDate(activity.end_date)}`
+                                    : ''}
+                                  {' · '}
+                                  {activity.classNames.join(', ') || 'No classes'}
+                                </p>
+                              </div>
+                              <div className="flex gap-2 shrink-0">
+                                <Button size="sm" variant="outline" asChild>
+                                  <Link href={`/activities/${activity.id}`}>Open</Link>
+                                </Button>
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  onClick={() => downloadActivityReport(activity)}
+                                >
+                                  <FileText className="h-4 w-4 mr-1.5" />
+                                  Brief
+                                </Button>
+                                {canManage && (
+                                  <Button
+                                    size="sm"
+                                    variant="outline"
+                                    onClick={() => editActivity(activity)}
+                                  >
+                                    <Edit3 className="h-4 w-4 mr-1.5" />
+                                    Edit
+                                  </Button>
+                                )}
+                              </div>
+                            </article>
+                          );
+                        })}
+                      </div>
+                    </section>
+                  )
+              )}
             </div>
           ) : (
             <div className="p-14 text-center text-gray-500 dark:text-slate-400">
