@@ -1,0 +1,42 @@
+.workspace table {
+  @apply w-full border-collapse text-left text-sm;
+}
+.workspace table thead {
+  @apply bg-slate-50 dark:bg-slate-800/70;
+}
+.workspace table th {
+  @apply px-3 py-3 text-xs font-bold text-slate-500 dark:text-slate-400;
+}
+.workspace table td {
+  @apply px-3 py-3 align-middle;
+}
+.workspace table tbody tr {
+  @apply border-t border-slate-200/80 transition-colors hover:bg-slate-50/70 dark:border-slate-800 dark:hover:bg-slate-800/40;
+}
+.workspace table tfoot {
+  @apply bg-slate-50 dark:bg-slate-800/70;
+}
+.workspace input[type='checkbox'] {
+  @apply h-4 w-4 shrink-0 align-middle accent-indigo-600;
+}
+.workspace summary {
+  @apply cursor-pointer rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500;
+}
+.workspace [role='alert'] {
+  @apply rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800 dark:border-red-900/50 dark:bg-red-950/60 dark:text-red-200;
+}
+.workspace [role='status'] {
+  @apply rounded-xl border border-indigo-100 bg-indigo-50 px-4 py-3 text-sm text-indigo-900 dark:border-indigo-900/50 dark:bg-indigo-950/60 dark:text-indigo-100;
+}
+@media print {
+  .workspace table th,
+  .workspace table td {
+    padding: 0.25rem 0.5rem;
+  }
+  .workspace table th,
+  .workspace table td,
+  .workspace table tfoot {
+    color: #0f172a;
+    background: #fff;
+  }
+}

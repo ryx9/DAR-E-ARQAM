@@ -5,7 +5,8 @@
 
 # Testing
 /coverage
-
+/tests
+/supabase
 # Next.js
 /.next/
 /out/

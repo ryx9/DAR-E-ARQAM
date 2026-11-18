@@ -27,6 +27,7 @@ import {
   Banknote,
   HelpCircle,
   MessageSquareWarning,
+  CalendarDays,
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import { supabase } from '../utils/supabaseClient';
@@ -95,6 +96,8 @@ const NAV_LINKS: NavItem[] = [
   { href: '/diary', label: 'Diary', icon: NotebookPen, hue: 330 },
   { href: '/activities', label: 'Activities', icon: Sparkles, hue: 292 },
   { href: '/advance', label: 'Advance', icon: Wallet, hue: 142 },
+  { href: '/ptm', label: 'Parent-teacher meetings', icon: CalendarDays, hue: 210 },
+  { href: '/my-salary', label: 'My salary', icon: Banknote, hue: 220 },
   { href: '/mycomplaint', label: 'Complaints', icon: ShieldAlert, hue: 347 },
 ];
 
@@ -129,6 +132,7 @@ const DESKTOP_LINKS = [
   { href: '/dashboard', label: 'Classes', roles: ['admin', 'superadmin', 'teacher', 'user'] },
   { href: '/admin/report', label: 'Fee Reports', roles: ['admin', 'superadmin'] },
   { href: '/admin/profiles', label: 'Manage Teachers', roles: ['admin', 'superadmin'] },
+  { href: '/admin/payroll', label: 'Payroll attendance', roles: ['superadmin'] },
 ];
 
 const ROLE_LABELS: Record<string, string> = {
@@ -458,12 +462,12 @@ const Navbar = () => {
           </Link>
 
           {/* Navigation */}
-          {isLoggedIn && renderSection('Academic and utilities', NAV_LINKS)}
+          {isLoggedIn && renderSection('Academic and utilities', NAV_LINKS.filter(item => item.href !== '/ptm' || ['teacher', 'admin', 'superadmin'].includes(userRole || '')))}
           {isLoggedIn && isAdmin && <>
             {renderSection('Administration', ADMIN_OVERVIEW)}
             {renderSection('Fee management', ADMIN_FEES)}
             {renderSection('Students', ADMIN_STUDENTS)}
-            {renderSection('Operations and HR', ADMIN_OPERATIONS)}
+            {renderSection('Operations and HR', userRole === 'superadmin' ? [...ADMIN_OPERATIONS, { href: '/admin/payroll', label: 'Payroll attendance', icon: Banknote, hue: 220 }] : ADMIN_OPERATIONS)}
           </>}
         </div>
       </div>

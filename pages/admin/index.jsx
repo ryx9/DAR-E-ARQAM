@@ -28,6 +28,7 @@ export default function AdminDashboard() {
   const router = useRouter()
   const { toast } = useToast()
   
+  const [isSuperadmin, setIsSuperadmin] = useState(false)
   const [isLoading, setIsLoading] = useState(true)
   const [daysFilter, setDaysFilter] = useState(30) // <-- TS removed
   
@@ -39,6 +40,10 @@ export default function AdminDashboard() {
     recentInvoices: 0,
     uniquePayments: 0
   })
+
+  useEffect(() => {
+    setIsSuperadmin(localStorage.getItem('UserRole') === 'superadmin')
+  }, [])
 
   // Refetch when daysFilter changes
   useEffect(() => {
@@ -145,6 +150,7 @@ export default function AdminDashboard() {
         { label: "Admissions", icon: FileText, href: "/admin/managestudent", color: "text-blue-600 dark:text-blue-400", bg: "bg-blue-50 dark:bg-blue-900/20", border: "group-hover:border-blue-200 dark:group-hover:border-blue-800" },
         { label: "Student Records", icon: Database, href: "/admin/crud", color: "text-indigo-600 dark:text-indigo-400", bg: "bg-indigo-50 dark:bg-indigo-900/20", border: "group-hover:border-indigo-200 dark:group-hover:border-indigo-800" },
         { label: "Inquiries", icon: HelpCircle, href: "/admin/inquiries", color: "text-amber-600 dark:text-amber-400", bg: "bg-amber-50 dark:bg-amber-900/20", border: "group-hover:border-amber-200 dark:group-hover:border-amber-800" },
+        { label: "Parent-teacher meetings", icon: CalendarDays, href: "/ptm", color: "text-blue-600 dark:text-blue-400", bg: "bg-blue-50 dark:bg-blue-900/20", border: "group-hover:border-blue-200 dark:group-hover:border-blue-800" },
       ]
     },
     { 
@@ -152,6 +158,7 @@ export default function AdminDashboard() {
       links: [
         { label: "Manage Teachers", icon: UserCheck, href: "/admin/profiles", color: "text-violet-600 dark:text-violet-400", bg: "bg-violet-50 dark:bg-violet-900/20", border: "group-hover:border-violet-200 dark:group-hover:border-violet-800" },
         { label: "Staff Advances", icon: Banknote, href: "/admin/advances", color: "text-purple-600 dark:text-purple-400", bg: "bg-purple-50 dark:bg-purple-900/20", border: "group-hover:border-purple-200 dark:group-hover:border-purple-800" },
+        ...(isSuperadmin ? [{ label: "Payroll attendance", icon: CalendarDays, href: "/admin/payroll", color: "text-blue-600 dark:text-blue-400", bg: "bg-blue-50 dark:bg-blue-900/20", border: "group-hover:border-blue-200 dark:group-hover:border-blue-800" }] : []),
         { label: "Complaints", icon: MessageSquareWarning, href: "/admin/complaint", color: "text-rose-600 dark:text-rose-400", bg: "bg-rose-50 dark:bg-rose-900/20", border: "group-hover:border-rose-200 dark:group-hover:border-rose-800" },
       ]
     }
