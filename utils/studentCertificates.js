@@ -45,9 +45,12 @@ const iconDataUrl = svg =>
     image.src = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`;
   });
 
-const loadContactIcons = async () => {
+const loadContactIcons = async color => {
   const entries = await Promise.all(
-    Object.entries(LUCIDE_SVG).map(async ([name, svg]) => [name, await iconDataUrl(svg)])
+    Object.entries(LUCIDE_SVG).map(async ([name, svg]) => [
+      name,
+      await iconDataUrl(svg.replaceAll('#432c88', color)),
+    ])
   );
   return Object.fromEntries(entries);
 };
@@ -64,40 +67,75 @@ const MARGIN = 22.5;
 const drawLetterhead = (doc, logo, title, studentId) => {
   const width = doc.internal.pageSize.getWidth();
   const right = width - MARGIN;
-  if (logo) doc.addImage(logo, 'PNG', MARGIN, 16, 67, 23);
+  doc.setFillColor(...PURPLE);
+  doc.rect(0, 0, width, 54, 'F');
+  doc.setFillColor(89, 69, 157);
+  doc.circle(width + 8, 6, 39, 'F');
+  doc.setFillColor(255, 255, 255);
+  doc.roundedRect(-17, 5, 128, 41, 20.5, 20.5, 'F');
+  doc.setFillColor(...YELLOW);
+  doc.roundedRect(1, 43.5, 78, 2.5, 1.25, 1.25, 'F');
+  doc.setFillColor(...YELLOW);
+  doc.rect(0, 54, width, 2.3, 'F');
+  if (logo) doc.addImage(logo, 'PNG', 16, 10, 82, 28.16);
   else {
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(20);
     doc.setTextColor(...PURPLE);
     doc.text('DAR-E-ARQAM SCHOOLS', MARGIN, 28);
   }
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(11);
+  doc.setTextColor(255, 255, 255);
+  doc.text('OFFICE OF THE PRINCIPAL', right, 16, { align: 'right' });
   doc.setFont('helvetica', 'normal');
-  doc.setFontSize(9);
-  doc.setTextColor(...GREY);
+  doc.setFontSize(9.2);
+  doc.setTextColor(245, 243, 255);
   doc.text(`Ref: DAS/QMT/${studentId || '—'}`, right, 25, { align: 'right' });
-  doc.text(`Student ID: ${studentId || '—'}`, right, 30, { align: 'right' });
-  doc.text(`Issued: ${formatDate(new Date().toISOString().slice(0, 10))}`, right, 35, {
+  doc.text(`Student ID: ${studentId || '—'}`, right, 31, { align: 'right' });
+  doc.text(`Issued: ${formatDate(new Date().toISOString().slice(0, 10))}`, right, 37, {
     align: 'right',
   });
-  doc.setDrawColor(...PURPLE);
-  doc.setLineWidth(0.35);
-  doc.line(MARGIN, 46, right, 46);
-  doc.setFillColor(...YELLOW);
-  doc.rect(MARGIN, 45.5, 14, 1, 'F');
   doc.setFont('times', 'bold');
   doc.setFontSize(18);
   doc.setTextColor(...INK);
-  doc.text(title, MARGIN, 65);
+  doc.text(title, MARGIN, 72);
 };
 
-const writeParagraph = (doc, text, y) => {
+const plain = text => ({ text });
+const field = text => ({ text: String(text || '—'), highlight: true });
+
+const writeParagraph = (doc, runs, y) => {
   doc.setFont('times', 'normal');
   doc.setFontSize(11.3);
   doc.setLineHeightFactor(1.45);
   doc.setTextColor(...INK);
-  const lines = doc.splitTextToSize(text, 165);
-  doc.text(lines, 22.5, y, { maxWidth: 165, align: 'justify' });
-  return y + lines.length * 5.25;
+  const left = MARGIN;
+  const right = doc.internal.pageSize.getWidth() - MARGIN;
+  const lineHeight = 5.4;
+  let x = left;
+  let lineY = y;
+
+  for (const run of runs) {
+    const tokens = run.text.split(/(\s+)/);
+    for (const token of tokens) {
+      if (!token) continue;
+      doc.setFont('times', run.highlight ? 'bold' : 'normal');
+      const tokenWidth = doc.getTextWidth(token);
+      if (token.trim() && x + tokenWidth > right && x > left) {
+        x = left;
+        lineY += lineHeight;
+      }
+      if (run.highlight && token.trim()) {
+        doc.setFillColor(255, 243, 125);
+        doc.roundedRect(x - 0.7, lineY - 3.7, tokenWidth + 1.4, 4.7, 0.5, 0.5, 'F');
+      }
+      doc.setTextColor(...INK);
+      doc.text(token, x, lineY);
+      x += tokenWidth;
+    }
+  }
+  return lineY + lineHeight;
 };
 
 const drawSignatureLine = doc => {
@@ -114,18 +152,20 @@ const drawSignatureLine = doc => {
 const drawFooter = (doc, icons) => {
   const width = doc.internal.pageSize.getWidth();
   const height = doc.internal.pageSize.getHeight();
-  doc.setDrawColor(205, 205, 205);
-  doc.setLineWidth(0.25);
-  doc.line(MARGIN, height - 22, width - MARGIN, height - 22);
+  const footerTop = height - 31;
+  doc.setFillColor(...PURPLE);
+  doc.rect(0, footerTop, width, 29, 'F');
+  doc.setFillColor(...YELLOW);
+  doc.rect(0, footerTop, width, 2, 'F');
   doc.setFont('helvetica', 'normal');
-  doc.setFontSize(8.5);
-  doc.setTextColor(...GREY);
+  doc.setFontSize(10);
+  doc.setTextColor(255, 255, 255);
   const contacts = [
     ['pin', '583 Q Block Model Town, Lahore'],
     ['phone', '03234447292'],
     ['mail', 'qmodeltown@das.edu.pk'],
   ];
-  const textOffset = 5;
+  const textOffset = 5.8;
   const usedWidth = contacts.reduce(
     (sum, [, label]) => sum + textOffset + doc.getTextWidth(label),
     0
@@ -133,17 +173,25 @@ const drawFooter = (doc, icons) => {
   const gap = (width - 2 * MARGIN - usedWidth) / (contacts.length - 1);
   let x = MARGIN;
   for (const [icon, label] of contacts) {
-    doc.addImage(icons[icon], 'PNG', x, height - 17, 3.4, 3.4);
-    doc.text(label, x + textOffset, height - 14.2);
+    doc.addImage(icons[icon], 'PNG', x, height - 19, 4.2, 4.2);
+    doc.text(label, x + textOffset, height - 15.5);
     x += textOffset + doc.getTextWidth(label) + gap;
   }
 };
 
-const createCertificate = async ({ title, student, recipient, addressee, subject, paragraphs }) => {
-  const [logo, icons] = await Promise.all([loadSchoolLogo(), loadContactIcons()]);
+const createCertificate = async ({
+  title,
+  student,
+  recipient,
+  addressee,
+  subject,
+  salutation,
+  paragraphs,
+}) => {
+  const [logo, icons] = await Promise.all([loadSchoolLogo(), loadContactIcons('#FFFFFF')]);
   const doc = new jsPDF({ unit: 'mm', format: 'a4' });
   drawLetterhead(doc, logo, title, student.studentid);
-  let y = 81;
+  let y = 88;
   if (recipient) {
     doc.setFont('times', 'normal');
     doc.setFontSize(11);
@@ -165,8 +213,15 @@ const createCertificate = async ({ title, student, recipient, addressee, subject
     doc.text(`Subject: ${subject}`, 22.5, y);
     y += 13;
   }
-  paragraphs.forEach((text, index) => {
-    y = writeParagraph(doc, text, y);
+  if (salutation) {
+    doc.setFont('times', 'normal');
+    doc.setFontSize(11);
+    doc.setTextColor(...INK);
+    doc.text(salutation, 22.5, y);
+    y += 12;
+  }
+  paragraphs.forEach((runs, index) => {
+    y = writeParagraph(doc, runs, y);
     if (index < paragraphs.length - 1) y += 7;
   });
   drawSignatureLine(doc);
@@ -184,9 +239,71 @@ export const printSchoolLeavingCertificate = async student => {
     student,
     addressee: 'TO WHOM IT MAY CONCERN',
     paragraphs: [
-      `This is to certify that ${name}, child of ${guardian}, was a bona fide student of Dar-e-Arqam Schools, Q Block Model Town Campus, Lahore, and last attended Class ${className}.`,
-      `According to the school record, ${p.subject.toLowerCase()} has completed the required leaving formalities. ${p.possessive} conduct and character during ${p.possessive.toLowerCase()} stay at the school were found to be good.`,
-      `This certificate is issued at the request of ${p.possessive.toLowerCase()} parent or guardian for an official purpose. We wish ${p.object} every success in ${p.possessive.toLowerCase()} future studies.`,
+      [
+        plain('This is to certify that '),
+        field(name),
+        plain(', child of '),
+        field(guardian),
+        plain(
+          ', was a bona fide student of Dar-e-Arqam Schools, Q Block Model Town Campus, Lahore, and last attended '
+        ),
+        field(`Class ${className}`),
+        plain('.'),
+      ],
+      [
+        plain('According to the school record, '),
+        plain(p.subject.toLowerCase()),
+        plain(' has completed the required leaving formalities. '),
+        plain(p.possessive),
+        plain(' conduct and character during '),
+        plain(p.possessive.toLowerCase()),
+        plain(' stay at the school were found to be '),
+        plain('good'),
+        plain('.'),
+      ],
+      [
+        plain('This certificate is issued at the request of '),
+        plain(p.possessive.toLowerCase()),
+        plain(' parent or guardian for an official purpose. We wish '),
+        plain(p.object),
+        plain(' every success in '),
+        plain(p.possessive.toLowerCase()),
+        plain(' future studies.'),
+      ],
+    ],
+  });
+};
+
+export const printBonafideCertificate = async student => {
+  const p = pronouns(student.gender);
+  const name = student.name || 'the student';
+  const className = student.classes?.name || student.class_name || '—';
+  const guardian = student.fathername || 'parent/guardian';
+  return createCertificate({
+    title: 'Bonafide Certificate',
+    student,
+    addressee: 'TO WHOM IT MAY CONCERN',
+    paragraphs: [
+      [
+        plain('This is to certify that '),
+        field(name),
+        plain(', child of '),
+        field(guardian),
+        plain(
+          ', is a bona fide student of Dar-e-Arqam Schools, Q Block Model Town Campus, Lahore.'
+        ),
+      ],
+      [
+        plain(p.subject),
+        plain(' is presently enrolled in '),
+        field(`Class ${className}`),
+        plain(' and is attending the institution as a regular student.'),
+      ],
+      [
+        plain('This certificate is issued at the request of '),
+        plain(p.possessive.toLowerCase()),
+        plain(' parent or guardian for an official purpose.'),
+      ],
     ],
   });
 };
@@ -201,10 +318,36 @@ export const printMigrationCertificate = async ({ student, branch, paidTill }) =
     student,
     recipient: `The Principal / Director\n${branch}`,
     subject: `Migration of ${name}`,
+    salutation: 'Dear Sir/Madam,',
     paragraphs: [
-      `This is to certify that ${name}, student of Class ${className}, is a bona fide student of Dar-e-Arqam Schools, Q Block Model Town Campus, Lahore. ${p.possessive} current monthly fee is PKR ${fee}.`,
-      `${p.subject} is willing to shift to your esteemed branch for continuation of ${p.possessive.toLowerCase()} studies. All school dues have been cleared up to ${formatDate(paidTill)}.`,
-      `We have no objection to ${p.possessive.toLowerCase()} migration and request that ${p.subject.toLowerCase()} may kindly be facilitated in completing the admission process at your branch.`,
+      [
+        plain('This is to certify that '),
+        field(name),
+        plain(', student of '),
+        field(`Class ${className}`),
+        plain(
+          ', is a bona fide student of Dar-e-Arqam Schools, Q Block Model Town Campus, Lahore. '
+        ),
+        plain(p.possessive),
+        plain(' current monthly fee is '),
+        field(`PKR ${fee}`),
+        plain('.'),
+      ],
+      [
+        plain(p.subject),
+        plain(' is willing to shift to your esteemed branch for continuation of '),
+        plain(p.possessive.toLowerCase()),
+        plain(' studies. All school dues have been cleared up to '),
+        field(formatDate(paidTill)),
+        plain('.'),
+      ],
+      [
+        plain('We have no objection to '),
+        plain(p.possessive.toLowerCase()),
+        plain(' migration and request that '),
+        plain(p.subject.toLowerCase()),
+        plain(' may kindly be facilitated in completing the admission process at your branch.'),
+      ],
     ],
   });
 };

@@ -250,6 +250,18 @@ export default function AdminDashboard() {
         ...(isSuperadmin
           ? [
               {
+                label: 'Office Orders',
+                icon: FileText,
+                href: '/office-orders',
+                color: 'text-purple-700 dark:text-purple-300',
+                bg: 'bg-purple-50 dark:bg-purple-900/20',
+                border: 'group-hover:border-purple-200 dark:group-hover:border-purple-800',
+              },
+            ]
+          : []),
+        ...(isSuperadmin
+          ? [
+              {
                 label: 'Payroll attendance',
                 icon: CalendarDays,
                 href: '/admin/payroll',

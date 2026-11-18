@@ -24,6 +24,7 @@ import {
   LayoutGrid,
   ScrollText,
   FileSpreadsheet,
+  FileText,
   BookOpenCheck,
   Sparkles,
   UserCheck,
@@ -96,6 +97,14 @@ const NAV_LINKS = [
     color: 'text-fuchsia-600 dark:text-fuchsia-400',
     bg: 'bg-fuchsia-50 dark:bg-fuchsia-900/20',
     border: 'group-hover:border-fuchsia-200 dark:group-hover:border-fuchsia-800',
+  },
+  {
+    href: '/office-orders',
+    label: 'Office orders',
+    icon: FileText,
+    color: 'text-purple-700 dark:text-purple-300',
+    bg: 'bg-purple-50 dark:bg-purple-900/20',
+    border: 'group-hover:border-purple-200 dark:group-hover:border-purple-800',
   },
   {
     href: '/attendance-record/report',

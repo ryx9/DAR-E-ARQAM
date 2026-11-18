@@ -97,6 +97,7 @@ const NAV_LINKS: NavItem[] = [
   { href: '/syllabus', label: 'Syllabus', icon: BookOpenCheck, hue: 262 },
   { href: '/parent-communication', label: 'Parent communication', icon: MessageCircle, hue: 330 },
   { href: '/activities', label: 'Activities', icon: Sparkles, hue: 292 },
+  { href: '/office-orders', label: 'Office orders', icon: FileText, hue: 262 },
   { href: '/admin/datesheet-builder', label: 'Datesheet Builder', icon: CalendarDays, hue: 210 },
   { href: '/advance', label: 'Advance', icon: Wallet, hue: 142 },
   { href: '/my-salary', label: 'My salary', icon: Banknote, hue: 220 },

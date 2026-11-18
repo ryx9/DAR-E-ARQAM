@@ -189,11 +189,23 @@ async function drawStyledActivityHtml(doc, html, x, y, width, addContinuationPag
     'position:absolute;left:0;top:0;z-index:-1;pointer-events:none;width:760px;background:#fff;color:#334155;font-family:Helvetica,Arial,sans-serif;font-size:14px;line-height:1.48;padding:0;';
   wrapper.innerHTML = `<style>
     h1{font-size:25px;line-height:1.25;margin:10px 0;color:#0f172a}h2{font-size:20px;line-height:1.35;margin:9px 0;color:#1e293b}h3{font-size:16px;line-height:1.4;margin:8px 0;color:#1e293b}
-    p{margin:6px 0}ul,ol{margin:7px 0;padding-left:24px}li{margin:3px 0}blockquote{border-left:4px solid #60a5fa;color:#64748b;font-style:italic;margin:10px 0;padding:5px 0 5px 13px}
+    p{margin:6px 0}ul,ol{margin:7px 0;padding-left:0;list-style:none}li{position:relative;margin:3px 0;padding-left:22px}.pdf-list-marker{position:absolute;left:3px;color:#2563eb;font-weight:700}.pdf-list-marker.number{width:20px;text-align:right;left:0}ol li{padding-left:28px}blockquote{border-left:4px solid #60a5fa;color:#64748b;font-style:italic;margin:10px 0;padding:5px 0 5px 13px}
     pre{background:#0f172a;border-radius:6px;color:#e2e8f0;font-family:monospace;font-size:12px;margin:10px 0;padding:12px;white-space:pre-wrap;overflow-wrap:anywhere}hr{border:0;border-top:1px solid #cbd5e1;margin:14px 0}
     table{border-collapse:collapse;table-layout:fixed;margin:12px 0;width:100%}th,td{border:1px solid #cbd5e1;overflow-wrap:anywhere;padding:7px 9px;text-align:left;vertical-align:top;word-break:break-word}th{background:#e2e8f0;color:#1e293b;font-weight:700}
     a{color:#2563eb;text-decoration:underline}.activity-task{display:flex;gap:7px;margin:5px 0}.activity-task input{accent-color:#2563eb}
   </style>${html || '<p>No activity description was provided.</p>'}`;
+  wrapper.querySelectorAll('ul > li').forEach(item => {
+    item.insertAdjacentHTML('afterbegin', '<span class="pdf-list-marker">•</span>');
+  });
+  wrapper.querySelectorAll('ol').forEach(list => {
+    [...list.children].forEach((item, index) => {
+      if (item.tagName?.toLowerCase() === 'li')
+        item.insertAdjacentHTML(
+          'afterbegin',
+          `<span class="pdf-list-marker number">${index + 1}.</span>`
+        );
+    });
+  });
   document.body.appendChild(wrapper);
   try {
     const canvas = await html2canvas(wrapper, {

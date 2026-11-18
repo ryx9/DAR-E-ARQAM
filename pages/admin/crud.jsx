@@ -30,6 +30,7 @@ import {
 import { motion, AnimatePresence } from 'framer-motion';
 import { useToast } from '../../hooks/use-toast';
 import {
+  printBonafideCertificate,
   printMigrationCertificate,
   printSchoolLeavingCertificate,
 } from '../../utils/studentCertificates';
@@ -173,6 +174,12 @@ export default function StudentsPage() {
 
   const handleLeavingCertificate = async student => {
     if (!(await printSchoolLeavingCertificate(student))) {
+      toast({ title: 'Please allow pop-ups to print the certificate.', variant: 'destructive' });
+    }
+  };
+
+  const handleBonafideCertificate = async student => {
+    if (!(await printBonafideCertificate(student))) {
       toast({ title: 'Please allow pop-ups to print the certificate.', variant: 'destructive' });
     }
   };
@@ -946,8 +953,15 @@ export default function StudentsPage() {
                                   </button>
                                 </>
                               ) : (
-                                /* Active view: edit, leave, delete */
+                                /* Active view: bonafide certificate, edit, leave, delete */
                                 <>
+                                  <button
+                                    onClick={() => handleBonafideCertificate(s)}
+                                    className="rounded-md px-2 py-1.5 text-xs font-semibold text-purple-700 transition-colors hover:bg-purple-50 dark:text-purple-300 dark:hover:bg-purple-900/30"
+                                    title="Create bonafide certificate"
+                                  >
+                                    Bonafide certificate
+                                  </button>
                                   <button
                                     onClick={() => handleManageRedirect(s.studentid)}
                                     className="p-1.5 text-gray-500 hover:text-blue-600 hover:bg-blue-50 rounded-md transition-colors dark:text-slate-400 dark:hover:text-blue-400 dark:hover:bg-blue-900/30"
