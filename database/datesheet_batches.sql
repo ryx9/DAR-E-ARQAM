@@ -6,11 +6,17 @@ create table if not exists public.datesheet_batches (
   exam_end_date date not null,
   invoice_start_date date not null,
   invoice_end_date date not null,
+  attendance_start_date date,
+  attendance_end_date date,
+  ptm_start_date date,
+  ptm_end_date date,
   is_active boolean not null default false,
   created_by uuid references public.profiles(id) on delete set null,
   created_at timestamptz not null default now(),
   constraint datesheet_batches_exam_dates check (exam_end_date >= exam_start_date),
-  constraint datesheet_batches_invoice_dates check (invoice_end_date >= invoice_start_date)
+  constraint datesheet_batches_invoice_dates check (invoice_end_date >= invoice_start_date),
+  constraint datesheet_batches_attendance_window_dates check (attendance_start_date is null or attendance_end_date is null or attendance_end_date >= attendance_start_date),
+  constraint datesheet_batches_ptm_window_dates check (ptm_start_date is null or ptm_end_date is null or ptm_end_date >= ptm_start_date)
 );
 
 create table if not exists public.datesheet_batch_classes (

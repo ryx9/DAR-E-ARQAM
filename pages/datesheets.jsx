@@ -76,23 +76,23 @@ export default function Datesheets() {
       <Head>
         <title>Datesheets | DAR-E-ARQAM</title>
       </Head>
-      <main className="min-h-screen overflow-hidden bg-slate-950 px-4 py-8 text-slate-900 sm:py-12">
-        <div className="pointer-events-none fixed inset-0 bg-[radial-gradient(circle_at_15%_0%,rgba(99,102,241,.42),transparent_28%),radial-gradient(circle_at_85%_10%,rgba(20,184,166,.22),transparent_25%),linear-gradient(145deg,#111827,#172554_48%,#0f172a)]" />
+      <main className="min-h-screen overflow-hidden bg-[#f7f8ff] px-4 py-8 text-slate-900 sm:py-12">
+        <div className="pointer-events-none fixed inset-0 bg-[radial-gradient(circle_at_12%_0%,rgba(199,210,254,.72),transparent_30%),radial-gradient(circle_at_88%_8%,rgba(204,251,241,.62),transparent_25%),linear-gradient(180deg,#fbfcff,#f4f6ff_55%,#eef2ff)]" />
         <div className="relative mx-auto max-w-5xl">
-          <header className="mb-7 text-center text-white sm:mb-10">
-            <div className="mx-auto mb-5 flex h-16 w-16 items-center justify-center rounded-[1.35rem] border border-white/20 bg-white/10 shadow-2xl shadow-indigo-950/50 backdrop-blur">
-              <CalendarDays className="h-8 w-8 text-indigo-100" />
+          <header className="mb-7 text-center sm:mb-10">
+            <div className="mx-auto mb-5 flex h-16 w-16 items-center justify-center rounded-[1.35rem] bg-indigo-600 text-white shadow-xl shadow-indigo-200">
+              <CalendarDays className="h-8 w-8" />
             </div>
-            <p className="text-xs font-bold uppercase tracking-[.28em] text-indigo-200">
+            <p className="text-xs font-bold uppercase tracking-[.28em] text-indigo-600">
               DAR-E-ARQAM School
             </p>
             <h1 className="mt-3 text-3xl font-bold tracking-tight sm:text-5xl">Exam datesheets</h1>
-            <p className="mx-auto mt-3 max-w-xl text-sm leading-6 text-slate-300 sm:text-base">
+            <p className="mx-auto mt-3 max-w-xl text-sm leading-6 text-slate-600 sm:text-base">
               Your child’s verified examination timetable, available as soon as the school publishes
               it.
             </p>
           </header>
-          <section className="overflow-hidden rounded-[2rem] border border-white/30 bg-white shadow-2xl shadow-slate-950/40">
+          <section className="overflow-hidden rounded-[2rem] border border-indigo-100/80 bg-white/95 shadow-xl shadow-indigo-950/10 backdrop-blur">
             <div className="bg-gradient-to-r from-indigo-50 via-white to-teal-50 p-5 sm:p-7">
               <div className="mb-4 flex items-center gap-2 text-xs font-semibold uppercase tracking-[.16em] text-indigo-700">
                 <ShieldCheck className="h-4 w-4" /> Secure student lookup
@@ -124,25 +124,25 @@ export default function Datesheets() {
             </div>
             {student && (
               <div className="p-5 sm:p-7">
-                <div className="relative overflow-hidden rounded-2xl bg-slate-900 p-5 text-white shadow-xl sm:p-6">
-                  <div className="absolute -right-8 -top-10 h-36 w-36 rounded-full bg-indigo-500/30 blur-2xl" />
+                <div className="relative overflow-hidden rounded-2xl border border-indigo-100 bg-gradient-to-br from-white to-indigo-50 p-5 shadow-sm sm:p-6">
+                  <div className="absolute -right-8 -top-10 h-36 w-36 rounded-full bg-indigo-200/60 blur-2xl" />
                   <div className="relative flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
                     <div className="flex items-center gap-4">
-                      <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-white/10 text-lg font-bold text-indigo-100">
+                      <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-indigo-600 text-lg font-bold text-white shadow-lg shadow-indigo-200">
                         {student.name?.slice(0, 1)?.toUpperCase()}
                       </div>
                       <div>
-                        <p className="text-xs font-semibold uppercase tracking-[.18em] text-indigo-200">
+                        <p className="text-xs font-semibold uppercase tracking-[.18em] text-indigo-600">
                           Verified student
                         </p>
                         <h2 className="mt-1 text-xl font-semibold">{student.name}</h2>
-                        <p className="mt-1 text-sm text-slate-300">
+                        <p className="mt-1 text-sm text-slate-600">
                           {student.classes?.name || 'Class'}{' '}
-                          <span className="mx-1.5 text-slate-500">•</span> DAS {student.studentid}
+                          <span className="mx-1.5 text-slate-400">•</span> DAS {student.studentid}
                         </p>
                       </div>
                     </div>
-                    <span className="inline-flex w-fit items-center gap-1.5 rounded-full bg-emerald-400/15 px-3 py-1.5 text-xs font-bold text-emerald-300">
+                    <span className="inline-flex w-fit items-center gap-1.5 rounded-full bg-emerald-100 px-3 py-1.5 text-xs font-bold text-emerald-700">
                       <CheckCircle2 className="h-3.5 w-3.5" /> Active record
                     </span>
                   </div>
@@ -236,7 +236,7 @@ export default function Datesheets() {
               </div>
             )}
           </section>
-          <p className="mt-5 text-center text-xs text-slate-400">
+          <p className="mt-5 text-center text-xs text-slate-500">
             For examination queries, please contact the school office.
           </p>
         </div>

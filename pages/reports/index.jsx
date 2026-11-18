@@ -2120,6 +2120,7 @@ function StudentTab({ data, classId, selectedId, setSelectedId }) {
     className: data.className,
     isClear: p.isClear,
     attendance: p.attendance,
+    ptmAttended: p.ptmAttended || 0,
     marksData: perTest
       ? p.assessments.map(a => ({
           subject: a.testName || a.subject,
@@ -2394,6 +2395,16 @@ function StudentTab({ data, classId, selectedId, setSelectedId }) {
                               )}
                             >
                               no mobile
+                            </span>
+                          )}
+                          {x.ptmAttended > 0 && (
+                            <span
+                              className={cx(
+                                'text-[10px] font-semibold',
+                                active ? 'text-white/85' : 'text-violet-600 dark:text-violet-300'
+                              )}
+                            >
+                              PTM {x.ptmAttended}
                             </span>
                           )}
                         </span>
@@ -2931,7 +2942,7 @@ export default function ResultCenterPage() {
       const { data: batchData, error: batchError } = await supabase
         .from('datesheet_batches')
         .select(
-          'id,title,exam_start_date,exam_end_date,is_active,datesheet_batch_classes(class_id,classes(name)),datesheet_batch_tests(test_id)'
+          'id,title,exam_start_date,exam_end_date,attendance_start_date,attendance_end_date,ptm_start_date,ptm_end_date,is_active,datesheet_batch_classes(class_id,classes(name)),datesheet_batch_tests(test_id)'
         )
         .order('exam_start_date', { ascending: false });
       if (!batchError) {
@@ -2972,16 +2983,25 @@ export default function ResultCenterPage() {
   };
   const applyDatesheet = value => {
     setDatesheetId(value);
-    if (!value) return;
+    if (!value) {
+      setSepAttn(false);
+      return;
+    }
     const batch = datesheets.find(item => String(item.id) === value);
     if (!batch) return;
     setStart(batch.exam_start_date);
     setEnd(batch.exam_end_date);
+    if (batch.attendance_start_date && batch.attendance_end_date) {
+      setAStart(batch.attendance_start_date);
+      setAEnd(batch.attendance_end_date);
+      setSepAttn(true);
+    } else {
+      setSepAttn(false);
+    }
     const matching = (batch.datesheet_batch_classes || []).find(row =>
       classes.some(item => String(item.id) === String(row.class_id))
     );
     if (matching) setClassId(String(matching.class_id));
-    setSepAttn(false);
   };
   const effAS = sepAttn && aStart ? aStart : start;
   const effAE = sepAttn && aEnd ? aEnd : end;
@@ -3011,7 +3031,7 @@ export default function ResultCenterPage() {
         return;
       }
 
-      const [rawMarks, attn] = await Promise.all([
+      const [rawMarks, attn, ptmAttendance] = await Promise.all([
         selectedDatesheet && !selectedDatesheet.testIds.length
           ? []
           : paginate(() => {
@@ -3032,6 +3052,17 @@ export default function ResultCenterPage() {
             .gte('date', effAS)
             .lte('date', effAE)
         ),
+        selectedDatesheet?.ptm_start_date && selectedDatesheet?.ptm_end_date
+          ? paginate(() =>
+              supabase
+                .from('ptm_participants')
+                .select('student_id,attendance,ptm_meetings!inner(starts_at)')
+                .in('student_id', ids)
+                .eq('attendance', 'present')
+                .gte('ptm_meetings.starts_at', `${selectedDatesheet.ptm_start_date}T00:00:00`)
+                .lte('ptm_meetings.starts_at', `${selectedDatesheet.ptm_end_date}T23:59:59`)
+            )
+          : [],
       ]);
       const valid = rawMarks.filter(
         m => m.obtained_marks !== null && m.obtained_marks !== undefined && m.total_marks > 0
@@ -3053,8 +3084,15 @@ export default function ResultCenterPage() {
         };
       };
 
+      const ptmByStudent = {};
+      (ptmAttendance || []).forEach(row => {
+        ptmByStudent[row.student_id] = (ptmByStudent[row.student_id] || 0) + 1;
+      });
       const profiles = students
-        .map(s => buildStudentProfile(s.studentid, s, flat, attnOf(s.studentid)))
+        .map(s => ({
+          ...buildStudentProfile(s.studentid, s, flat, attnOf(s.studentid)),
+          ptmAttended: ptmByStudent[s.studentid] || 0,
+        }))
         .filter(p => p.assessmentsCount > 0);
       const classStats = buildClassStats(profiles, classId, className);
       const subjects = Object.keys(classStats.subjectStats || {}).sort();

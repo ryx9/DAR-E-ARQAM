@@ -211,9 +211,9 @@ export default function AdminDashboard() {
           border: 'group-hover:border-amber-200 dark:group-hover:border-amber-800',
         },
         {
-          label: 'Parent-teacher meetings',
+          label: 'Parent communication',
           icon: CalendarDays,
-          href: '/ptm',
+          href: '/parent-communication',
           color: 'text-blue-600 dark:text-blue-400',
           bg: 'bg-blue-50 dark:bg-blue-900/20',
           border: 'group-hover:border-blue-200 dark:group-hover:border-blue-800',

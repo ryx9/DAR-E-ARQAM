@@ -25,7 +25,6 @@ import {
   ScrollText,
   FileSpreadsheet,
   BookOpenCheck,
-  NotebookPen,
   Sparkles,
   UserCheck,
   BellRing,
@@ -45,6 +44,7 @@ import {
   Banknote,
   Bot,
   Wand2,
+  MessageSquare,
 } from 'lucide-react';
 
 // ----- Config: All Links Restored -----
@@ -82,9 +82,9 @@ const NAV_LINKS = [
     border: 'group-hover:border-violet-200 dark:group-hover:border-violet-800',
   },
   {
-    href: '/diary',
-    label: 'Diary',
-    icon: NotebookPen,
+    href: '/parent-communication',
+    label: 'Parent communication',
+    icon: MessageSquare,
     color: 'text-pink-600 dark:text-pink-400',
     bg: 'bg-pink-50 dark:bg-pink-900/20',
     border: 'group-hover:border-pink-200 dark:group-hover:border-pink-800',
@@ -112,14 +112,6 @@ const NAV_LINKS = [
     color: 'text-green-600 dark:text-green-400',
     bg: 'bg-green-50 dark:bg-green-900/20',
     border: 'group-hover:border-green-200 dark:group-hover:border-green-800',
-  },
-  {
-    href: '/ptm',
-    label: 'Parent-teacher meetings',
-    icon: CalendarDays,
-    color: 'text-blue-600 dark:text-blue-400',
-    bg: 'bg-blue-50 dark:bg-blue-900/20',
-    border: 'group-hover:border-blue-200 dark:group-hover:border-blue-800',
   },
   {
     href: '/my-salary',
@@ -430,7 +422,7 @@ const DashboardHome = () => {
           <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 gap-2 md:gap-4">
             {NAV_LINKS.filter(
               link =>
-                !['/ptm', '/my-salary'].includes(link.href) ||
+                link.href !== '/my-salary' ||
                 ['teacher', 'admin', 'superadmin'].includes(userRole || '')
             ).map(link => {
               const Icon = link.icon;

@@ -27,6 +27,7 @@ import {
   Banknote,
   HelpCircle,
   MessageSquareWarning,
+  MessageCircle,
   CalendarDays,
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
@@ -94,11 +95,10 @@ const NAV_LINKS: NavItem[] = [
   { href: '/marks', label: 'Tests & Marks', icon: ScrollText, hue: 160 },
   { href: '/attendance-record/report', label: 'Attendance', icon: UserCheck, hue: 173 },
   { href: '/syllabus', label: 'Syllabus', icon: BookOpenCheck, hue: 262 },
-  { href: '/diary', label: 'Diary', icon: NotebookPen, hue: 330 },
+  { href: '/parent-communication', label: 'Parent communication', icon: MessageCircle, hue: 330 },
   { href: '/activities', label: 'Activities', icon: Sparkles, hue: 292 },
   { href: '/admin/datesheet-builder', label: 'Datesheet Builder', icon: CalendarDays, hue: 210 },
   { href: '/advance', label: 'Advance', icon: Wallet, hue: 142 },
-  { href: '/ptm', label: 'Parent-teacher meetings', icon: CalendarDays, hue: 210 },
   { href: '/my-salary', label: 'My salary', icon: Banknote, hue: 220 },
   { href: '/mycomplaint', label: 'Complaints', icon: ShieldAlert, hue: 347 },
 ];
@@ -520,15 +520,7 @@ const Navbar = () => {
           </Link>
 
           {/* Navigation */}
-          {isLoggedIn &&
-            renderSection(
-              'Academic and utilities',
-              NAV_LINKS.filter(
-                item =>
-                  item.href !== '/ptm' ||
-                  ['teacher', 'admin', 'superadmin'].includes(userRole || '')
-              )
-            )}
+          {isLoggedIn && renderSection('Academic and utilities', NAV_LINKS)}
           {isLoggedIn && isAdmin && (
             <>
               {renderSection('Administration', ADMIN_OVERVIEW)}

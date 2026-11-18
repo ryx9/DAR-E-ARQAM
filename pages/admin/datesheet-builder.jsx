@@ -42,6 +42,10 @@ export default function DatesheetBuilder() {
       new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString().slice(0, 10)
     ),
     [invoiceEnd, setInvoiceEnd] = useState(today());
+  const [attendanceStart, setAttendanceStart] = useState(invoiceStart),
+    [attendanceEnd, setAttendanceEnd] = useState(invoiceEnd),
+    [ptmStart, setPtmStart] = useState(''),
+    [ptmEnd, setPtmEnd] = useState('');
   const [students, setStudents] = useState([]),
     [batches, setBatches] = useState([]),
     [editingId, setEditingId] = useState(null),
@@ -105,7 +109,10 @@ export default function DatesheetBuilder() {
       selected.length &&
       scheduleComplete &&
       invoiceStart &&
-      invoiceEnd >= invoiceStart
+      invoiceEnd >= invoiceStart &&
+      attendanceStart &&
+      attendanceEnd >= attendanceStart &&
+      (!ptmStart || !ptmEnd || ptmEnd >= ptmStart)
   );
   const resetDraft = () => {
     setEditingId(null);
@@ -113,6 +120,10 @@ export default function DatesheetBuilder() {
     setRows([emptyRow()]);
     setTitle('Terminal Examination');
     setTestType('Terminal-1');
+    setAttendanceStart(invoiceStart);
+    setAttendanceEnd(invoiceEnd);
+    setPtmStart('');
+    setPtmEnd('');
     setStudents([]);
     setShowMessageSetup(false);
     setNotice('New datesheet ready. Choose classes and add the examination papers.');
@@ -183,9 +194,12 @@ export default function DatesheetBuilder() {
         !title.trim() ||
         validRows.length !== rows.length ||
         !invoiceStart ||
-        invoiceEnd < invoiceStart
+        invoiceEnd < invoiceStart ||
+        !attendanceStart ||
+        attendanceEnd < attendanceStart ||
+        (ptmStart && ptmEnd && ptmEnd < ptmStart)
       )
-        throw new Error('Enter a title, complete every paper and check the invoice period.');
+        throw new Error('Complete every paper and check the invoice, attendance and PTM periods.');
       const payload = selected.flatMap(classId => {
         const className = classes.find(item => item.id === classId)?.name || '';
         return validRows.map(row => ({
@@ -222,6 +236,10 @@ export default function DatesheetBuilder() {
         exam_end_date: dates.at(-1),
         invoice_start_date: invoiceStart,
         invoice_end_date: invoiceEnd,
+        attendance_start_date: attendanceStart,
+        attendance_end_date: attendanceEnd,
+        ptm_start_date: ptmStart || null,
+        ptm_end_date: ptmEnd || null,
       };
       let batchId = editingId;
       if (editingId) {
@@ -273,7 +291,7 @@ export default function DatesheetBuilder() {
       const { data, error } = await supabase
         .from('datesheet_batches')
         .select(
-          'id,title,invoice_start_date,invoice_end_date,datesheet_batch_classes(class_id),datesheet_batch_tests(tests(id,class_id,subject,test_name,date,test_type))'
+          'id,title,exam_start_date,exam_end_date,invoice_start_date,invoice_end_date,attendance_start_date,attendance_end_date,ptm_start_date,ptm_end_date,datesheet_batch_classes(class_id),datesheet_batch_tests(tests(id,class_id,subject,test_name,date,test_type))'
         )
         .eq('id', batch.id)
         .single();
@@ -290,6 +308,12 @@ export default function DatesheetBuilder() {
       setTitle(reuse ? `${data.title} (copy)` : data.title);
       setInvoiceStart(data.invoice_start_date);
       setInvoiceEnd(data.invoice_end_date);
+      setAttendanceStart(
+        data.attendance_start_date || data.exam_start_date || data.invoice_start_date
+      );
+      setAttendanceEnd(data.attendance_end_date || data.exam_end_date || data.invoice_end_date);
+      setPtmStart(data.ptm_start_date || '');
+      setPtmEnd(data.ptm_end_date || '');
       const scheduled = [...unique.values()];
       setSelected((data.datesheet_batch_classes || []).map(row => row.class_id));
       setRows(
@@ -486,6 +510,53 @@ export default function DatesheetBuilder() {
                 value={invoiceEnd}
                 onChange={e => setInvoiceEnd(e.target.value)}
               />
+            </div>
+          </div>
+        </section>
+        <section className={`${card} p-5`}>
+          <div className="mb-4">
+            <h2 className="font-semibold">Linked review windows</h2>
+            <p className="mt-1 text-sm text-gray-500 dark:text-slate-400">
+              Save the attendance period and optional parent-meeting period with this datesheet so
+              reports and result cards use the same academic context.
+            </p>
+          </div>
+          <div className="grid gap-4 md:grid-cols-2">
+            <div className="rounded-xl border border-indigo-100 bg-indigo-50/60 p-4 dark:border-indigo-500/20 dark:bg-indigo-500/5">
+              <label className={label}>Attendance duration</label>
+              <div className="flex gap-2">
+                <Input
+                  type="date"
+                  className={input}
+                  value={attendanceStart}
+                  onChange={e => setAttendanceStart(e.target.value)}
+                />
+                <Input
+                  type="date"
+                  className={input}
+                  value={attendanceEnd}
+                  onChange={e => setAttendanceEnd(e.target.value)}
+                />
+              </div>
+            </div>
+            <div className="rounded-xl border border-violet-100 bg-violet-50/60 p-4 dark:border-violet-500/20 dark:bg-violet-500/5">
+              <label className={label}>
+                PTM duration <span className="normal-case font-normal">(optional)</span>
+              </label>
+              <div className="flex gap-2">
+                <Input
+                  type="date"
+                  className={input}
+                  value={ptmStart}
+                  onChange={e => setPtmStart(e.target.value)}
+                />
+                <Input
+                  type="date"
+                  className={input}
+                  value={ptmEnd}
+                  onChange={e => setPtmEnd(e.target.value)}
+                />
+              </div>
             </div>
           </div>
         </section>
