@@ -4,6 +4,7 @@ import { Search, Send } from 'lucide-react';
 import { supabase } from '../../utils/supabaseClient';
 import { getClassAccess, canAccessClass } from '../../utils/classAccess';
 import { loadPTMClasses, matchesSearch, staffRoles } from '../../utils/ptm';
+import { queueClassTeacherAlerts } from '../../utils/staffNotifications';
 import PTMLayout, {
   control,
   Empty,
@@ -111,6 +112,13 @@ export default function NewPTM() {
         p_student_ids: selection,
       });
       if (error) throw error;
+      const className =
+        setup?.classes.find(item => String(item.id) === String(classId))?.name || 'your class';
+      await queueClassTeacherAlerts(
+        [classId],
+        teacher =>
+          `*New PTM Scheduled*\n\nDear ${teacher.name || 'Teacher'}, a parent-teacher meeting has been scheduled for ${className}.\n\n*${form.title}*\nWhen: ${startsAt.toLocaleString('en-GB', { dateStyle: 'medium', timeStyle: 'short' })}\nLocation: ${form.location}\n\nPlease sign in to review the meeting details.`
+      );
       await router.push(`/ptm/${data}`);
     } catch (e) {
       setError(e.message);

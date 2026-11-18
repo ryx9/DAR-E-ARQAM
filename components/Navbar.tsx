@@ -132,14 +132,14 @@ const DESKTOP_LINKS = [
   { href: '/admin/invoices', label: 'Invoices', roles: ['admin', 'superadmin'] },
   { href: '/admin/crud', label: 'Manage Students', roles: ['admin', 'superadmin'] },
   { href: '/reports', label: 'Reports', roles: ['admin', 'superadmin', 'teacher', 'user'] },
-  { href: '/marks', label: 'Tests', roles: ['admin', 'superadmin', 'teacher', 'user'] },
+  { href: '/marks', label: 'Tests', roles: ['teacher', 'user'] },
   { href: '/dashboard', label: 'Classes', roles: ['admin', 'superadmin', 'teacher', 'user'] },
   { href: '/admin/report', label: 'Fee Reports', roles: ['admin', 'superadmin'] },
   { href: '/admin/profiles', label: 'Manage Teachers', roles: ['admin', 'superadmin'] },
   {
     href: '/admin/datesheet-builder',
     label: 'Datesheet Builder',
-    roles: ['teacher', 'admin', 'superadmin'],
+    roles: ['admin', 'superadmin'],
   },
   { href: '/admin/payroll', label: 'Payroll attendance', roles: ['superadmin'] },
 ];
@@ -237,6 +237,12 @@ const Navbar = () => {
 
   const isAdmin = userRole === 'admin' || userRole === 'superadmin';
   const roleLabel = userRole ? (ROLE_LABELS[userRole] ?? userRole) : null;
+  const academicLinks =
+    userRole === 'teacher'
+      ? NAV_LINKS.filter(item => item.href !== '/admin/datesheet-builder').map(item =>
+          item.href === '/marks' ? { ...item, label: 'Tests' } : item
+        )
+      : NAV_LINKS;
 
   const isActive = (href: string) => {
     if (href === '/admin') return pathname === '/admin';
@@ -521,7 +527,7 @@ const Navbar = () => {
           </Link>
 
           {/* Navigation */}
-          {isLoggedIn && renderSection('Academic and utilities', NAV_LINKS)}
+          {isLoggedIn && renderSection('Academic and utilities', academicLinks)}
           {isLoggedIn && isAdmin && (
             <>
               {renderSection('Administration', ADMIN_OVERVIEW)}

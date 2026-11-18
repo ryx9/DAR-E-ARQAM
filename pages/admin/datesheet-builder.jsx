@@ -18,6 +18,7 @@ import {
 } from 'lucide-react';
 import { downloadDatesheetsPDF } from '../../utils/datesheetPDF';
 import { getClassAccess } from '../../utils/classAccess';
+import { queueClassTeacherAlerts } from '../../utils/staffNotifications';
 
 const subjects = [
   'English',
@@ -272,12 +273,24 @@ export default function DatesheetBuilder() {
           .insert((createdTests || []).map(test => ({ batch_id: batchId, test_id: test.id }))),
       ]);
       if (classesError || testsError) throw classesError || testsError;
+      let alerts = 0;
+      if (!editingId) {
+        const classNames = classes
+          .filter(item => selected.map(String).includes(String(item.id)))
+          .map(item => item.name)
+          .join(', ');
+        alerts = await queueClassTeacherAlerts(
+          selected,
+          teacher =>
+            `*New Datesheet Created*\n\nDear ${teacher.name || 'Teacher'}, a datesheet has been created for your assigned class(es).\n\n*${title}*\nClasses: ${classNames || 'Assigned classes'}\nExams: ${dates[0]} to ${dates.at(-1)}\n\nPlease sign in to review the schedule.`
+        );
+      }
       await loadBatches();
       await loadBatch({ id: batchId });
       setNotice(
         editingId
           ? 'Datesheet updated. Existing papers retain their marks.'
-          : `${payload.length} tests created and datesheet saved as inactive. Activate it below when ready for parents.`
+          : `${payload.length} tests created and datesheet saved as inactive. ${alerts} teacher alert${alerts === 1 ? '' : 's'} queued. Activate it below when ready for parents.`
       );
     } catch (error) {
       setNotice(error.message || 'Unable to create tests.');

@@ -5,7 +5,18 @@ import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
 import ActivityRichEditor from '../components/ActivityRichEditor';
 import { printOfficeOrder } from '../utils/officeOrderReports';
-import { FileText, Loader2, Pencil, Plus, Printer, RefreshCw, Send, Users, X } from 'lucide-react';
+import {
+  FileText,
+  Loader2,
+  Pencil,
+  Plus,
+  Printer,
+  RefreshCw,
+  Send,
+  Trash2,
+  Users,
+  X,
+} from 'lucide-react';
 
 const today = () => new Date().toISOString().slice(0, 10);
 const newOrderNumber = () => `OO-${new Date().getFullYear()}-${String(Date.now()).slice(-5)}`;
@@ -15,6 +26,7 @@ const blankForm = () => ({
   issued_on: today(),
   content: '',
   recipientIds: [],
+  queueAlerts: false,
 });
 const formatDate = value =>
   value
@@ -34,6 +46,7 @@ export default function OfficeOrders() {
   const [activeId, setActiveId] = useState(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [queueingId, setQueueingId] = useState(null);
   const [notice, setNotice] = useState('');
 
   const isSuperadmin = profile?.role?.toLowerCase() === 'superadmin';
@@ -68,7 +81,8 @@ export default function OfficeOrders() {
       setProfile(ownProfile);
       setTeachers(
         (staff || []).filter(
-          item => item.role?.toLowerCase() === 'teacher' && item.is_active !== false
+          item =>
+            ['teacher', 'admin'].includes(item.role?.toLowerCase()) && item.is_active !== false
         )
       );
       await loadOrders(ownProfile);
@@ -126,8 +140,39 @@ export default function OfficeOrders() {
       issued_on: order.issued_on || today(),
       content: order.content || '',
       recipientIds: order.recipientIds || [],
+      queueAlerts: false,
     });
     window.scrollTo({ top: 0, behavior: 'smooth' });
+  }
+
+  async function queueOfficeOrderAlerts(order) {
+    if (!isSuperadmin) return;
+    setQueueingId(order.id);
+    try {
+      const recipientIds = (order.recipientIds || []).map(String);
+      const recipients = teachers.filter(
+        teacher => recipientIds.includes(String(teacher.id)) && teacher.mobilenumber
+      );
+      if (!recipients.length) {
+        setNotice('There are no assigned active recipients with a mobile number to alert.');
+        return;
+      }
+      const { error } = await supabase.from('messages').insert(
+        recipients.map(teacher => ({
+          number: teacher.mobilenumber,
+          sent: false,
+          text: `*Office Order Reminder*\n\nDear ${teacher.name || 'Staff member'}, please review the office order assigned to you.\n\n*${order.order_number}* — ${order.title}\nIssued: ${formatDate(order.issued_on)}\n\nPlease sign in to read the full order.`,
+        }))
+      );
+      if (error) throw error;
+      setNotice(
+        `${recipients.length} WhatsApp alert${recipients.length === 1 ? '' : 's'} queued for this office order.`
+      );
+    } catch (error) {
+      setNotice(error.message || 'Unable to queue office-order alerts.');
+    } finally {
+      setQueueingId(null);
+    }
   }
 
   async function saveOrder(event) {
@@ -174,7 +219,7 @@ export default function OfficeOrders() {
       if (recipientError) throw recipientError;
 
       let queued = 0;
-      if (!editingId) {
+      if (form.queueAlerts) {
         const recipients = teachers.filter(
           item => form.recipientIds.map(String).includes(String(item.id)) && item.mobilenumber
         );
@@ -192,8 +237,10 @@ export default function OfficeOrders() {
       }
       setNotice(
         editingId
-          ? 'Office order updated.'
-          : `Office order created. ${queued} WhatsApp alert${queued === 1 ? '' : 's'} queued.`
+          ? `Office order updated.${form.queueAlerts ? ` ${queued} WhatsApp alert${queued === 1 ? '' : 's'} queued again.` : ''}`
+          : form.queueAlerts
+            ? `Office order created. ${queued} WhatsApp alert${queued === 1 ? '' : 's'} queued.`
+            : 'Office order created. Alerts were not queued.'
       );
       reset();
       await loadOrders(profile);
@@ -202,6 +249,20 @@ export default function OfficeOrders() {
       setNotice(error.message || 'Unable to save the office order.');
     } finally {
       setSaving(false);
+    }
+  }
+
+  async function deleteOrder(order) {
+    if (!isSuperadmin || !window.confirm(`Delete ${order.order_number}? This cannot be undone.`))
+      return;
+    try {
+      const { error } = await supabase.from('office_orders').delete().eq('id', order.id);
+      if (error) throw error;
+      setNotice('Office order deleted.');
+      if (String(activeId) === String(order.id)) setActiveId(null);
+      await loadOrders(profile);
+    } catch (error) {
+      setNotice(error.message || 'Unable to delete the office order.');
     }
   }
 
@@ -293,7 +354,7 @@ export default function OfficeOrders() {
               </div>
               <fieldset className="md:col-span-12">
                 <legend className="mb-2 text-xs font-semibold uppercase tracking-wider text-gray-500">
-                  Assigned active teachers
+                  Assigned active teachers and admins
                 </legend>
                 <div className="flex flex-wrap gap-2">
                   {teachers.map(teacher => (
@@ -308,13 +369,27 @@ export default function OfficeOrders() {
                         onChange={() => toggleRecipient(teacher.id)}
                       />
                       {teacher.name || teacher.id}
+                      {teacher.role ? ` · ${teacher.role}` : ''}
                     </label>
                   ))}
                 </div>
                 {!teachers.length && (
-                  <p className="text-sm text-gray-500">No active teacher profiles are available.</p>
+                  <p className="text-sm text-gray-500">
+                    No active teacher or admin profiles are available.
+                  </p>
                 )}
               </fieldset>
+              <label className="md:col-span-12 flex cursor-pointer items-center gap-3 rounded-xl border border-purple-200 bg-purple-50 px-4 py-3 text-sm text-purple-900 dark:border-purple-900/50 dark:bg-purple-950/30 dark:text-purple-100">
+                <input
+                  type="checkbox"
+                  checked={form.queueAlerts}
+                  onChange={event => update('queueAlerts', event.target.checked)}
+                  className="h-4 w-4 accent-purple-700"
+                />
+                {editingId
+                  ? 'Queue the updated office-order alert again for the selected active recipients.'
+                  : 'Queue WhatsApp alerts now. You can leave this off and queue them later from the office order.'}
+              </label>
               <div className="md:col-span-12 flex justify-end">
                 <Button
                   type="submit"
@@ -326,7 +401,7 @@ export default function OfficeOrders() {
                   ) : (
                     <Send className="mr-2 h-4 w-4" />
                   )}
-                  {editingId ? 'Save changes' : 'Create and queue alerts'}
+                  {editingId ? 'Save changes' : 'Create office order'}
                 </Button>
               </div>
             </form>
@@ -362,7 +437,7 @@ export default function OfficeOrders() {
                       </p>
                       <p className="mt-1 font-semibold">{order.title}</p>
                       <p className="mt-1 text-xs text-gray-500">
-                        {formatDate(order.issued_on)} · {order.recipients.length} teacher
+                        {formatDate(order.issued_on)} · {order.recipients.length} recipient
                         {order.recipients.length === 1 ? '' : 's'}
                       </p>
                     </button>
@@ -396,10 +471,32 @@ export default function OfficeOrders() {
                       Print PDF
                     </Button>
                     {isSuperadmin && (
-                      <Button variant="outline" onClick={() => editOrder(activeOrder)}>
-                        <Pencil className="mr-2 h-4 w-4" />
-                        Edit
-                      </Button>
+                      <>
+                        <Button
+                          variant="outline"
+                          disabled={queueingId === activeOrder.id}
+                          onClick={() => queueOfficeOrderAlerts(activeOrder)}
+                        >
+                          {queueingId === activeOrder.id ? (
+                            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                          ) : (
+                            <Send className="mr-2 h-4 w-4" />
+                          )}
+                          Queue alerts
+                        </Button>
+                        <Button variant="outline" onClick={() => editOrder(activeOrder)}>
+                          <Pencil className="mr-2 h-4 w-4" />
+                          Edit
+                        </Button>
+                        <Button
+                          variant="outline"
+                          onClick={() => deleteOrder(activeOrder)}
+                          className="border-rose-200 text-rose-700 hover:bg-rose-50 dark:border-rose-900/60 dark:text-rose-300"
+                        >
+                          <Trash2 className="mr-2 h-4 w-4" />
+                          Delete
+                        </Button>
+                      </>
                     )}
                   </div>
                 </div>

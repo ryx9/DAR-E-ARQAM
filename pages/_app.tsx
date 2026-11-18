@@ -99,8 +99,7 @@ function MyApp({ Component, pageProps }: AppProps) {
   const isClient = typeof window !== 'undefined';
   const userRole = isClient ? localStorage.getItem('UserRole') : null;
   const isAdmin = userRole === 'admin' || userRole === 'superadmin';
-  const adminPageAllowed =
-    isAdmin || (userRole === 'teacher' && router.pathname === '/admin/datesheet-builder');
+  const adminPageAllowed = isAdmin;
 
   const isPublicRoute = OPEN_ROUTES.some(route => router.pathname.startsWith(route));
 

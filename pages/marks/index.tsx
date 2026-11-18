@@ -61,6 +61,14 @@ export default function MarksDashboard() {
   const [classes, setClasses] = useState<ClassData[]>([]);
   const [datesheets, setDatesheets] = useState<DatesheetBatch[]>([]);
   const [selectedDatesheet, setSelectedDatesheet] = useState('');
+  const [showAddTest, setShowAddTest] = useState(false);
+  const [addingTest, setAddingTest] = useState(false);
+  const [newTest, setNewTest] = useState({
+    subject: '',
+    test_name: '',
+    test_type: 'Monthly',
+    date: new Date().toISOString().slice(0, 10),
+  });
 
   // Auth State
   const [isAdmin, setIsAdmin] = useState(false);
@@ -210,6 +218,7 @@ export default function MarksDashboard() {
   const chooseDatesheet = (value: string) => {
     setSelectedDatesheet(value);
     setCurrentPage(0);
+    setShowAddTest(false);
     if (!value) return;
     const batch = datesheets.find(item => String(item.id) === value);
     if (batch) setSelectedClass(String(batch.classIds[0] || ''));
@@ -273,6 +282,55 @@ export default function MarksDashboard() {
     }
   };
 
+  const addTestToDatesheet = async () => {
+    const batch = datesheets.find(item => String(item.id) === selectedDatesheet);
+    if (!batch || !selectedClass || !newTest.subject.trim() || !newTest.date) return;
+    if (!batch.classIds.includes(Number(selectedClass))) return;
+    if (!canAccessClass(await getClassAccess(), selectedClass)) return;
+
+    setAddingTest(true);
+    try {
+      const className = classes.find(item => String(item.id) === selectedClass)?.name || '';
+      const { data: test, error: testError } = await supabase
+        .from('tests')
+        .insert({
+          subject: newTest.subject.trim(),
+          test_name: newTest.test_name.trim() || `${batch.title} – ${newTest.subject.trim()}`,
+          test_type: newTest.test_type,
+          date: newTest.date,
+          class_id: Number(selectedClass),
+          class_name: className,
+        })
+        .select('id')
+        .single();
+      if (testError) throw testError;
+
+      const { error: linkError } = await supabase
+        .from('datesheet_batch_tests')
+        .insert({ batch_id: batch.id, test_id: test.id });
+      if (linkError) throw linkError;
+
+      setDatesheets(current =>
+        current.map(item =>
+          item.id === batch.id ? { ...item, testIds: [...item.testIds, Number(test.id)] } : item
+        )
+      );
+      setNewTest({
+        subject: '',
+        test_name: '',
+        test_type: 'Monthly',
+        date: new Date().toISOString().slice(0, 10),
+      });
+      setShowAddTest(false);
+      setCurrentPage(0);
+      await fetchTests(0);
+    } catch (error) {
+      console.error('Error adding a test to datesheet:', error);
+    } finally {
+      setAddingTest(false);
+    }
+  };
+
   /* ---------------- Pagination Handlers ---------------- */
   const totalPages = Math.ceil(totalCount / PAGE_SIZE);
   const handlePrevPage = () => setCurrentPage(p => Math.max(0, p - 1));
@@ -288,6 +346,9 @@ export default function MarksDashboard() {
     });
   };
   const activeDatesheet = datesheets.find(batch => String(batch.id) === selectedDatesheet);
+  const canAddTestToDatesheet = Boolean(
+    activeDatesheet && selectedClass && activeDatesheet.classIds.includes(Number(selectedClass))
+  );
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-gray-50 to-gray-200 dark:from-[#0b1220] dark:to-[#05070c] text-gray-900 dark:text-slate-100 transition-colors">
@@ -304,11 +365,21 @@ export default function MarksDashboard() {
               Select a datesheet, enter marks, then move directly to its result reports.
             </p>
           </div>
-          <Link href="/admin/datesheet-builder">
-            <Button className="w-full sm:w-auto rounded-full bg-blue-600 hover:bg-blue-700 text-white shadow hover:shadow-blue-500/20 transition-all">
-              <Plus className="mr-2 h-4 w-4" /> Plan datesheet
+          {isAdmin ? (
+            <Link href="/admin/datesheet-builder">
+              <Button className="w-full sm:w-auto rounded-full bg-blue-600 hover:bg-blue-700 text-white shadow hover:shadow-blue-500/20 transition-all">
+                <Plus className="mr-2 h-4 w-4" /> Plan datesheet
+              </Button>
+            </Link>
+          ) : (
+            <Button
+              disabled={!canAddTestToDatesheet}
+              onClick={() => setShowAddTest(current => !current)}
+              className="w-full rounded-full bg-blue-600 text-white shadow transition-all hover:bg-blue-700 hover:shadow-blue-500/20 sm:w-auto"
+            >
+              <Plus className="mr-2 h-4 w-4" /> Add test to datesheet
             </Button>
-          </Link>
+          )}
         </div>
 
         {/* Filters Card */}
@@ -393,6 +464,68 @@ export default function MarksDashboard() {
             </Button>
           </div>
         </div>
+
+        {showAddTest && activeDatesheet && (
+          <section className="rounded-xl border border-blue-200 bg-blue-50/70 p-5 shadow-sm dark:border-blue-900/60 dark:bg-blue-950/20">
+            <div className="mb-4 flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <h2 className="font-semibold">Add a paper to {activeDatesheet.title}</h2>
+                <p className="text-sm text-gray-600 dark:text-slate-300">
+                  This adds one test for the selected class and keeps it inside this datesheet.
+                </p>
+              </div>
+              <Button size="sm" variant="ghost" onClick={() => setShowAddTest(false)}>
+                <X className="mr-1 h-4 w-4" /> Cancel
+              </Button>
+            </div>
+            <div className="grid gap-3 md:grid-cols-4">
+              <input
+                value={newTest.subject}
+                onChange={event =>
+                  setNewTest(current => ({ ...current, subject: event.target.value }))
+                }
+                placeholder="Subject"
+                className="h-10 rounded-md border border-gray-200 bg-white px-3 text-sm dark:border-white/10 dark:bg-white/10"
+              />
+              <input
+                value={newTest.test_name}
+                onChange={event =>
+                  setNewTest(current => ({ ...current, test_name: event.target.value }))
+                }
+                placeholder="Paper name (optional)"
+                className="h-10 rounded-md border border-gray-200 bg-white px-3 text-sm dark:border-white/10 dark:bg-white/10"
+              />
+              <input
+                type="date"
+                value={newTest.date}
+                onChange={event =>
+                  setNewTest(current => ({ ...current, date: event.target.value }))
+                }
+                className="h-10 rounded-md border border-gray-200 bg-white px-3 text-sm dark:border-white/10 dark:bg-white/10"
+              />
+              <div className="flex gap-2">
+                <select
+                  value={newTest.test_type}
+                  onChange={event =>
+                    setNewTest(current => ({ ...current, test_type: event.target.value }))
+                  }
+                  className="min-w-0 flex-1 rounded-md border border-gray-200 bg-white px-3 text-sm dark:border-white/10 dark:bg-white/10"
+                >
+                  {['Midterm-1', 'Midterm-2', 'Terminal-1', 'Terminal-2', 'Monthly'].map(type => (
+                    <option key={type}>{type}</option>
+                  ))}
+                </select>
+                <Button
+                  onClick={addTestToDatesheet}
+                  disabled={addingTest || !newTest.subject.trim() || !newTest.date}
+                  className="shrink-0 bg-blue-600 text-white hover:bg-blue-700"
+                >
+                  {addingTest ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Add paper'}
+                </Button>
+              </div>
+            </div>
+          </section>
+        )}
 
         {/* Tests List / Table */}
         <div className="rounded-xl border border-gray-200 dark:border-white/10 bg-white dark:bg-white/[0.04] backdrop-blur-xl shadow-sm dark:shadow-xl overflow-hidden">

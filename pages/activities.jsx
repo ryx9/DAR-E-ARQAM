@@ -14,10 +14,12 @@ import {
   Loader2,
   Plus,
   RefreshCw,
+  Send,
   Users,
   X,
 } from 'lucide-react';
 import { downloadActivityCalendar, downloadActivityReport } from '../utils/activityReports';
+import { queueClassTeacherAlerts } from '../utils/staffNotifications';
 
 const blankForm = () => ({
   title: '',
@@ -29,6 +31,7 @@ const blankForm = () => ({
   responsible_name: '',
   responsible_profile: '',
   classIds: [],
+  queueAlerts: false,
 });
 const STATUS_OPTIONS = {
   planned: {
@@ -75,6 +78,7 @@ export default function Activities() {
     [endDate, setEndDate] = useState('');
   const [notice, setNotice] = useState(''),
     [committeeProfileId, setCommitteeProfileId] = useState('');
+  const [queueingId, setQueueingId] = useState(null);
   const canManage = access?.role === 'superadmin' || isCommitteeMember,
     isSuperadmin = access?.role === 'superadmin';
   const glassCard =
@@ -263,8 +267,22 @@ export default function Activities() {
           .from('school_activity_classes')
           .insert(form.classIds.map(class_id => ({ activity_id: activityId, class_id })));
         if (classError) throw classError;
+        let alerts = 0;
+        if (form.queueAlerts) {
+          alerts = await queueClassTeacherAlerts(form.classIds, teacher => {
+            const classNames = classes
+              .filter(item => form.classIds.map(String).includes(String(item.id)))
+              .map(item => item.name)
+              .join(', ');
+            return `*New School Activity*\n\nDear ${teacher.name || 'Teacher'}, a new activity has been assigned to one or more of your classes.\n\n*${payload.title}*\nClasses: ${classNames || 'Assigned classes'}\nDate: ${formatDate(payload.start_date)}${payload.end_date ? ` to ${formatDate(payload.end_date)}` : ''}\n\nPlease sign in to review the activity brief.`;
+          });
+        }
         setNotice(
-          editingId ? 'Activity updated.' : 'Activity created and assigned to its classes.'
+          editingId
+            ? `Activity updated.${form.queueAlerts ? ` ${alerts} teacher alert${alerts === 1 ? '' : 's'} queued.` : ''}`
+            : form.queueAlerts
+              ? `Activity created and assigned to its classes. ${alerts} teacher alert${alerts === 1 ? '' : 's'} queued.`
+              : 'Activity created and assigned to its classes. Alerts were not queued.'
         );
         resetForm();
         await loadActivities();
@@ -286,8 +304,27 @@ export default function Activities() {
       responsible_name: activity.responsible_name || '',
       responsible_profile: activity.responsible_profile || '',
       classIds: activity.classIds || [],
+      queueAlerts: false,
     });
     window.scrollTo({ top: 0, behavior: 'smooth' });
+  }
+  async function queueActivityAlerts(activity) {
+    if (!canManage) return;
+    setQueueingId(activity.id);
+    try {
+      const alerts = await queueClassTeacherAlerts(
+        activity.classIds,
+        teacher =>
+          `*Activity Reminder*\n\nDear ${teacher.name || 'Teacher'}, please review the following activity assigned to one or more of your classes.\n\n*${activity.title}*\nClasses: ${activity.classNames.join(', ') || 'Assigned classes'}\nDate: ${formatDate(activity.start_date)}${activity.end_date ? ` to ${formatDate(activity.end_date)}` : ''}\n\nPlease sign in to view the activity brief.`
+      );
+      setNotice(
+        `${alerts} teacher alert${alerts === 1 ? '' : 's'} queued for “${activity.title}”.`
+      );
+    } catch (error) {
+      setNotice(error.message || 'Unable to queue activity alerts.');
+    } finally {
+      setQueueingId(null);
+    }
   }
   async function addCommitteeMember() {
     if (!committeeProfileId) return;
@@ -471,6 +508,16 @@ export default function Activities() {
                   ))}
                 </div>
               </fieldset>
+              <label className="md:col-span-12 flex cursor-pointer items-center gap-3 rounded-xl border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-900 dark:border-blue-900/50 dark:bg-blue-950/30 dark:text-blue-100">
+                <input
+                  type="checkbox"
+                  checked={form.queueAlerts}
+                  onChange={event => updateForm('queueAlerts', event.target.checked)}
+                  className="h-4 w-4 accent-blue-700"
+                />
+                Queue teacher alerts now. You can leave this off and queue them later from the
+                activity timeline.
+              </label>
             </form>
           </section>
         )}
@@ -639,14 +686,29 @@ export default function Activities() {
                                   Brief
                                 </Button>
                                 {canManage && (
-                                  <Button
-                                    size="sm"
-                                    variant="outline"
-                                    onClick={() => editActivity(activity)}
-                                  >
-                                    <Edit3 className="h-4 w-4 mr-1.5" />
-                                    Edit
-                                  </Button>
+                                  <>
+                                    <Button
+                                      size="sm"
+                                      variant="outline"
+                                      disabled={queueingId === activity.id}
+                                      onClick={() => queueActivityAlerts(activity)}
+                                    >
+                                      {queueingId === activity.id ? (
+                                        <Loader2 className="h-4 w-4 mr-1.5 animate-spin" />
+                                      ) : (
+                                        <Send className="h-4 w-4 mr-1.5" />
+                                      )}
+                                      Queue alerts
+                                    </Button>
+                                    <Button
+                                      size="sm"
+                                      variant="outline"
+                                      onClick={() => editActivity(activity)}
+                                    >
+                                      <Edit3 className="h-4 w-4 mr-1.5" />
+                                      Edit
+                                    </Button>
+                                  </>
                                 )}
                               </div>
                             </article>

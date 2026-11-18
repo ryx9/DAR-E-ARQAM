@@ -5,7 +5,7 @@ export default function NewTestPage() {
   const router = useRouter();
 
   useEffect(() => {
-    router.replace('/admin/datesheet-builder');
+    router.replace('/marks');
   }, [router]);
 
   return null;
