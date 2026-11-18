@@ -1,497 +1,571 @@
-import { useEffect, useMemo, useState, useTransition } from "react";
-import Link from "next/link"; // Assuming next/link is used based on context
-import { supabase } from "../utils/supabaseClient";
-import { canAccessClass, getClassAccess } from "../utils/classAccess";
-import Navbar from "../components/Navbar";
+import { useEffect, useMemo, useState, useTransition } from 'react';
+import { supabase } from '../utils/supabaseClient';
+import { getClassAccess } from '../utils/classAccess';
+import Navbar from '../components/Navbar';
+import { Input } from '../components/ui/input';
+import { Button } from '../components/ui/button';
+import ActivityRichEditor from '../components/ActivityRichEditor';
 import {
-  Table,
-  TableHeader,
-  TableRow,
-  TableHead,
-  TableBody,
-  TableCell,
-} from "../components/ui/table";
-import { Input } from "../components/ui/input";
-import { Button } from "../components/ui/button";
-import { 
-  Loader2, 
-  RefreshCw, 
-  Plus, 
-  Calendar as CalendarIcon, 
-  Filter, 
-  LayoutList,
-  BookOpen
-} from "lucide-react";
+  CalendarDays,
+  Check,
+  Edit3,
+  FileText,
+  Loader2,
+  Plus,
+  RefreshCw,
+  Users,
+  X,
+} from 'lucide-react';
+import { downloadActivityCalendar, downloadActivityReport } from '../utils/activityReports';
 
-export default function ActivitiesTracker() {
-  const [records, setRecords] = useState([]);
-  const [classes, setClasses] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [isPending, startTransition] = useTransition();
+const blankForm = () => ({
+  title: '',
+  description: '',
+  start_date: '',
+  end_date: '',
+  venue: '',
+  responsible_name: '',
+  responsible_profile: '',
+  classIds: [],
+});
+const formatDate = value =>
+  value
+    ? new Date(`${value}T00:00:00`).toLocaleDateString('en-GB', {
+        day: '2-digit',
+        month: 'short',
+        year: 'numeric',
+      })
+    : '—';
 
-  // Form state
-  const [selectedClass, setSelectedClass] = useState("");
-  const [selectedSubject, setSelectedSubject] = useState("");
-  const [description, setDescription] = useState("");
-  const [date, setDate] = useState("");
+export default function Activities() {
+  const [activities, setActivities] = useState([]),
+    [classes, setClasses] = useState([]),
+    [profiles, setProfiles] = useState([]);
+  const [access, setAccess] = useState(null),
+    [isCommitteeMember, setIsCommitteeMember] = useState(false),
+    [loading, setLoading] = useState(true);
+  const [saving, startTransition] = useTransition();
+  const [form, setForm] = useState(blankForm),
+    [editingId, setEditingId] = useState(null),
+    [startDate, setStartDate] = useState(''),
+    [endDate, setEndDate] = useState('');
+  const [notice, setNotice] = useState(''),
+    [committeeProfileId, setCommitteeProfileId] = useState('');
+  const canManage = access?.role === 'superadmin' || isCommitteeMember,
+    isSuperadmin = access?.role === 'superadmin';
+  const glassCard =
+    'rounded-xl border border-gray-200 dark:border-white/10 bg-white dark:bg-white/5 backdrop-blur-xl shadow-sm dark:shadow-xl';
+  const label =
+    'text-xs font-semibold text-gray-500 dark:text-slate-400 uppercase tracking-wider mb-1.5 block';
+  const input =
+    'w-full bg-gray-50 dark:bg-white/10 border-gray-200 dark:border-white/10 text-gray-900 dark:text-slate-100 rounded-md';
 
-  // Date range filter
-  const [startDate, setStartDate] = useState("");
-  const [endDate, setEndDate] = useState("");
-
-  // Subjects mapping
-  const SUBJECTS_ENUM = {
-    group1: [
-      "English",
-      "Urdu",
-      "Maths",
-      "Meri Dilchasp Dunya",
-      "Islamiyat",
-      "Conversation",
-    ],
-    group2: [
-      "English",
-      "Urdu",
-      "Maths",
-      "WA/SST/His-Geo",
-      "Islamiat",
-      "Computer",
-      "Science",
-      "Tarjuma tul Quran",
-    ],
-  };
-
-  const orderPG = ["PG", "Nursery", "Prep"];
-  const order12 = [
-    "One",
-    "Two",
-    "Three",
-    "Four",
-    "Five",
-    "Six",
-    "Seven",
-    "Eight",
-  ];
-
-  const getGroupName = (className) => {
-    if (!className) return null;
-    if (orderPG.includes(className)) return "group1";
-    if (order12.includes(className)) return "group2";
-    return null;
-  };
-
-  const getOrderedClasses = (list) => {
-    const g1 = orderPG
-      .map((n) => list.find((c) => c.name === n))
-      .filter(Boolean);
-    const g2 = order12
-      .map((n) => list.find((c) => c.name === n))
-      .filter(Boolean);
-    return [...g1, ...g2];
-  };
-
-  // Initial load
   useEffect(() => {
-    fetchClasses();
+    initialise();
   }, []);
 
-  // Refetch activities when date range changes
-  useEffect(() => {
-    fetchActivities();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [startDate, endDate]);
-
-  async function fetchClasses() {
+  async function initialise() {
     setLoading(true);
-    const access = await getClassAccess();
-    if (access.role === "teacher" && !access.classIds?.length) {
-      setClasses([]);
+    try {
+      const [classAccess, auth] = await Promise.all([getClassAccess(), supabase.auth.getUser()]);
+      setAccess(classAccess);
+      const userId = auth.data.user?.id;
+      const [{ data: allClasses, error: classError }, { data: membership }] = await Promise.all([
+        supabase.from('classes').select('id, name').order('id'),
+        userId
+          ? supabase
+              .from('activity_committee_members')
+              .select('profile_id')
+              .eq('profile_id', userId)
+              .maybeSingle()
+          : Promise.resolve({ data: null }),
+      ]);
+      if (classError) throw classError;
+      // Committee members may coordinate activities across the school even when
+      // their normal account role is teacher. Other teachers only see their classes.
+      const visibleClasses =
+        classAccess.role === 'teacher' && !membership
+          ? (allClasses || []).filter(item =>
+              (classAccess.classIds || []).map(String).includes(String(item.id))
+            )
+          : allClasses || [];
+      setClasses(visibleClasses);
+      setIsCommitteeMember(Boolean(membership));
+      if (classAccess.role === 'superadmin') await loadProfiles();
+      await loadActivities(classAccess, visibleClasses);
+    } catch (error) {
+      setNotice(
+        error.message || 'Unable to load activities. Run supabase/activities_workflow.sql first.'
+      );
+    } finally {
       setLoading(false);
-      return;
     }
-
-    let query = supabase
-      .from("classes")
-      .select("id, name")
-      .order("id", { ascending: true });
-    if (access.role === "teacher") query = query.in("id", access.classIds || []);
-    const { data, error } = await query;
-    if (error) {
-      console.error(error);
-    } else if (data) {
-      setClasses(getOrderedClasses(data));
-    }
-    setLoading(false);
   }
 
-  async function fetchActivities() {
-    setLoading(true);
-    const access = await getClassAccess();
-    if (access.role === "teacher" && !access.classIds?.length) {
-      setRecords([]);
-      setLoading(false);
-      return;
-    }
-
-    let query = supabase
-      .from("activities")
-      .select("id, class_id, subject, description, date, created_at")
-      .order("date", { ascending: false });
-
-    if (access.role === "teacher") query = query.in("class_id", access.classIds || []);
-    if (startDate) query = query.gte("date", startDate);
-    if (endDate) query = query.lte("date", endDate);
-
-    const { data, error } = await query;
-    if (error) console.error(error);
-    else setRecords(data || []);
-    setLoading(false);
+  async function loadProfiles() {
+    const [{ data, error }, { data: members, error: memberError }] = await Promise.all([
+      supabase.from('profiles').select('id, name, role, is_active').order('name'),
+      supabase.from('activity_committee_members').select('profile_id'),
+    ]);
+    if (error || memberError) throw error || memberError;
+    const memberIds = new Set((members || []).map(member => member.profile_id));
+    setProfiles(
+      (data || [])
+        .filter(profile => profile.role?.toLowerCase() === 'teacher' && profile.is_active !== false)
+        .map(profile => ({ ...profile, isCommittee: memberIds.has(profile.id) }))
+    );
   }
 
-  // Insert a single activity row
-  async function handleAdd(e) {
-    e.preventDefault();
-    if (!selectedClass || !selectedSubject || !description.trim()) {
-      alert("Please fill all fields");
-      return;
-    }
-    if (!canAccessClass(await getClassAccess(), selectedClass)) {
-      alert("You can only add activities for your assigned classes.");
-      return;
-    }
+  async function loadActivities(currentAccess = access, visibleClasses = classes) {
+    const { data, error } = await supabase
+      .from('school_activities')
+      .select(
+        'id, title, description, start_date, end_date, venue, responsible_name, responsible_profile, created_at, school_activity_classes(class_id, classes(id, name))'
+      )
+      .order('start_date', { ascending: true });
+    if (error) throw error;
+    const allowedIds = new Set((visibleClasses || []).map(item => String(item.id)));
+    setActivities(
+      (data || [])
+        .map(item => {
+          const assignments = item.school_activity_classes || [];
+          return {
+            ...item,
+            classIds: assignments.map(a => a.class_id),
+            classNames: assignments.map(a => a.classes?.name).filter(Boolean),
+          };
+        })
+        .filter(
+          item =>
+            currentAccess?.role !== 'teacher' ||
+            item.classIds.some(id => allowedIds.has(String(id)))
+        )
+    );
+  }
 
-    const payload = {
-      class_id: Number(selectedClass),
-      subject: selectedSubject,
-      description: description.trim(),
-      date: date || new Date().toISOString().split("T")[0],
-    };
+  const filteredActivities = useMemo(
+    () =>
+      activities.filter(
+        item =>
+          (!startDate || (item.end_date || item.start_date) >= startDate) &&
+          (!endDate || item.start_date <= endDate)
+      ),
+    [activities, startDate, endDate]
+  );
+  const updateForm = (key, value) => setForm(previous => ({ ...previous, [key]: value }));
+  const toggleClass = classId =>
+    setForm(previous => ({
+      ...previous,
+      classIds: previous.classIds.includes(classId)
+        ? previous.classIds.filter(id => id !== classId)
+        : [...previous.classIds, classId],
+    }));
+  const resetForm = () => {
+    setForm(blankForm());
+    setEditingId(null);
+  };
 
+  async function saveActivity(event) {
+    event.preventDefault();
+    if (!canManage) return;
+    if (!form.title.trim() || !form.start_date || !form.classIds.length)
+      return setNotice('Add an activity title, start date and at least one class.');
+    if (form.end_date && form.end_date < form.start_date)
+      return setNotice('The end date cannot be before the start date.');
     startTransition(async () => {
-      const { error } = await supabase.from("activities").insert(payload);
-      if (error) {
-        alert(error.message);
-      } else {
-        setSelectedClass("");
-        setSelectedSubject("");
-        setDescription("");
-        setDate("");
-        await fetchActivities();
+      try {
+        const { data: auth } = await supabase.auth.getUser();
+        const payload = {
+          title: form.title.trim(),
+          description: form.description.trim() || null,
+          start_date: form.start_date,
+          end_date: form.end_date || null,
+          venue: form.venue.trim() || null,
+          responsible_name: form.responsible_name.trim() || null,
+          responsible_profile: form.responsible_profile || null,
+        };
+        let activityId = editingId;
+        if (editingId) {
+          const { error } = await supabase
+            .from('school_activities')
+            .update(payload)
+            .eq('id', editingId);
+          if (error) throw error;
+          const { error: removeError } = await supabase
+            .from('school_activity_classes')
+            .delete()
+            .eq('activity_id', editingId);
+          if (removeError) throw removeError;
+        } else {
+          const { data, error } = await supabase
+            .from('school_activities')
+            .insert({ ...payload, created_by: auth.user?.id || null })
+            .select('id')
+            .single();
+          if (error) throw error;
+          activityId = data.id;
+        }
+        const { error: classError } = await supabase
+          .from('school_activity_classes')
+          .insert(form.classIds.map(class_id => ({ activity_id: activityId, class_id })));
+        if (classError) throw classError;
+        setNotice(
+          editingId ? 'Activity updated.' : 'Activity created and assigned to its classes.'
+        );
+        resetForm();
+        await loadActivities();
+      } catch (error) {
+        setNotice(error.message || 'Unable to save this activity.');
       }
     });
   }
 
-  // Calculate the total count of activities for each class and subject
-  const activityCountsByKey = useMemo(() => {
-    const counts = {};
-    for (const rec of records) {
-      const key = `${rec.class_id}|${rec.subject}`;
-      counts[key] = (counts[key] || 0) + 1;
-    }
-    return counts;
-  }, [records]);
-
-  const group1Ids = useMemo(
-    () => classes.filter((c) => orderPG.includes(c.name)).map((c) => c.id),
-    [classes]
-  );
-  const group2Ids = useMemo(
-    () => classes.filter((c) => order12.includes(c.name)).map((c) => c.id),
-    [classes]
-  );
-
-  function getSubjectsForClassId(classId) {
-    const name = classes.find((c) => c.id === classId)?.name;
-    const group = getGroupName(name);
-    return group ? SUBJECTS_ENUM[group] : [];
+  function editActivity(activity) {
+    setEditingId(activity.id);
+    setForm({
+      title: activity.title || '',
+      description: activity.description || '',
+      start_date: activity.start_date || '',
+      end_date: activity.end_date || '',
+      venue: activity.venue || '',
+      responsible_name: activity.responsible_name || '',
+      responsible_profile: activity.responsible_profile || '',
+      classIds: activity.classIds || [],
+    });
+    window.scrollTo({ top: 0, behavior: 'smooth' });
   }
-
-  function getColorRelativeToAvg(value, avg) {
-    if (value === undefined || value === null || avg === undefined)
-      return "text-gray-400 dark:text-slate-500";
-    if (value >= avg) return "text-green-600 dark:text-green-400 font-bold drop-shadow-[0_0_8px_rgba(74,222,128,0.3)]";
-    return "text-red-500 dark:text-red-400 font-bold drop-shadow-[0_0_8px_rgba(248,113,113,0.3)]";
-  }
-
-  // Reusable styling classes
-  const glassCardClass = "rounded-xl border border-gray-200 dark:border-white/10 bg-white dark:bg-white/5 backdrop-blur-xl shadow-sm dark:shadow-xl";
-  const labelClass = "text-xs font-semibold text-gray-500 dark:text-slate-400 uppercase tracking-wider mb-1.5 block";
-  const inputClass = "w-full bg-gray-50 dark:bg-white/10 border-gray-200 dark:border-white/10 text-gray-900 dark:text-slate-100 placeholder:text-gray-400 dark:placeholder:text-slate-500 focus:ring-2 focus:ring-blue-500/20 rounded-md";
-
-  function renderTable(classIds, title, subtitle) {
-    const firstName = classes.find((c) => c.id === classIds[0])?.name;
-    const group = getGroupName(firstName);
-    const subjects = group ? SUBJECTS_ENUM[group] : [];
-
-    // Column averages
-    const colAvg = {};
-    for (const s of subjects) {
-      let total = 0;
-      let count = 0;
-      for (const cid of classIds) {
-        const key = `${cid}|${s}`;
-        const v = activityCountsByKey[key];
-        if (typeof v === "number") {
-          total += v;
-          count++;
-        }
-      }
-      colAvg[s] = count ? total / count : 0;
+  async function addCommitteeMember() {
+    if (!committeeProfileId) return;
+    try {
+      const { error } = await supabase
+        .from('activity_committee_members')
+        .insert({ profile_id: committeeProfileId });
+      if (error) throw error;
+      setCommitteeProfileId('');
+      await loadProfiles();
+      setNotice('Committee member added.');
+    } catch (error) {
+      setNotice(error.message || 'Unable to add committee member.');
     }
-
-    return (
-      <div className={`${glassCardClass} overflow-hidden`}>
-        <div className="p-4 border-b border-gray-200 dark:border-white/10 flex flex-col md:flex-row md:items-center justify-between gap-2">
-            <div>
-                <h2 className="font-semibold text-lg flex items-center gap-2 text-gray-900 dark:text-slate-100">
-                    <LayoutList className="h-5 w-5 text-blue-500" />
-                    {title}
-                </h2>
-                <p className="text-sm text-gray-500 dark:text-slate-400">{subtitle}</p>
-            </div>
-        </div>
-
-        {subjects.length === 0 ? (
-           <div className="flex flex-col items-center justify-center py-12 text-center">
-             <div className="bg-gray-100 dark:bg-white/10 p-4 rounded-full mb-3">
-               <BookOpen className="h-8 w-8 text-gray-400 dark:text-slate-500" />
-             </div>
-             <p className="text-gray-500 dark:text-slate-400 text-sm">No activity entries found.</p>
-           </div>
-        ) : (
-          <div className="overflow-x-auto">
-            <Table>
-              <TableHeader className="bg-gray-50 dark:bg-white/5">
-                <TableRow className="border-b border-gray-200 dark:border-white/10 hover:bg-transparent">
-                  <TableHead className="text-gray-500 dark:text-slate-400 font-semibold uppercase text-xs w-[120px]">Class</TableHead>
-                  {subjects.map((s) => (
-                    <TableHead key={s} className="text-gray-500 dark:text-slate-400 font-semibold uppercase text-xs text-center min-w-[100px]">
-                      {s}
-                    </TableHead>
-                  ))}
-                </TableRow>
-              </TableHeader>
-              <TableBody className="divide-y divide-gray-100 dark:divide-white/5">
-                {classIds.map((cid) => {
-                  const cls = classes.find((c) => c.id === cid);
-                  return (
-                    <TableRow
-                      key={cid}
-                      className="group hover:bg-gray-50 dark:hover:bg-white/[0.02] transition-colors border-none"
-                    >
-                      <TableCell className="font-medium text-gray-900 dark:text-slate-200 bg-gray-50/50 dark:bg-white/[0.02]">
-                        {cls?.name ?? "—"}
-                      </TableCell>
-                      {subjects.map((s) => {
-                        const key = `${cid}|${s}`;
-                        const value = activityCountsByKey[key];
-                        return (
-                          <TableCell key={s} className="text-center text-base">
-                            {value !== undefined ? (
-                              <span className={getColorRelativeToAvg(value, colAvg[s])}>
-                                {value}
-                              </span>
-                            ) : (
-                              <span className="text-gray-300 dark:text-slate-700 text-sm">—</span>
-                            )}
-                          </TableCell>
-                        );
-                      })}
-                    </TableRow>
-                  );
-                })}
-                {/* Average Row */}
-                <TableRow className="bg-gray-100/50 dark:bg-white/5 font-semibold border-t border-gray-200 dark:border-white/10">
-                  <TableCell className="text-gray-900 dark:text-slate-100">Avg</TableCell>
-                  {subjects.map((s) => (
-                    <TableCell key={s} className="text-center text-gray-600 dark:text-slate-300">
-                      {colAvg[s] ? colAvg[s].toFixed(1) : "—"}
-                    </TableCell>
-                  ))}
-                </TableRow>
-              </TableBody>
-            </Table>
-          </div>
-        )}
-      </div>
-    );
+  }
+  async function removeCommitteeMember(profileId) {
+    try {
+      const { error } = await supabase
+        .from('activity_committee_members')
+        .delete()
+        .eq('profile_id', profileId);
+      if (error) throw error;
+      await loadProfiles();
+      setNotice('Committee member removed.');
+    } catch (error) {
+      setNotice(error.message || 'Unable to remove committee member.');
+    }
+  }
+  async function makeCalendar() {
+    try {
+      await downloadActivityCalendar({
+        activities: filteredActivities,
+        classes,
+        startDate,
+        endDate,
+      });
+    } catch (error) {
+      setNotice(error.message);
+    }
   }
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-gray-50 to-gray-200 dark:from-[#0b1220] dark:to-[#05070c] text-gray-900 dark:text-slate-100 transition-colors">
       <Navbar />
-
-      <div className="container mx-auto max-w-6xl p-4 md:p-8 space-y-8">
-        
-        {/* Header Section */}
-        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+      <main className="container mx-auto max-w-6xl p-4 md:p-8 space-y-7">
+        <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-4">
           <div>
-            <h1 className="text-3xl font-semibold tracking-tight">Activities Tracker</h1>
+            <h1 className="text-3xl font-semibold tracking-tight">Activities</h1>
             <p className="text-sm text-gray-500 dark:text-slate-400 mt-1">
-              Monitor daily class performance and subject coverage.
+              School events, class assignments and calendars in one place.
             </p>
           </div>
           <Button
             variant="outline"
-            onClick={() => fetchActivities()}
-            disabled={loading || isPending}
-            className="w-full sm:w-auto rounded-full border-gray-200 dark:border-white/10 hover:bg-gray-100 dark:hover:bg-white/10 bg-white dark:bg-white/5 text-gray-700 dark:text-slate-300"
+            onClick={initialise}
+            disabled={loading}
+            className="rounded-full border-gray-200 dark:border-white/10 bg-white dark:bg-white/5"
           >
-            <RefreshCw className={`mr-2 h-4 w-4 ${loading ? "animate-spin" : ""}`} />
-            Refresh Data
+            <RefreshCw className={`mr-2 h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
+            Refresh
           </Button>
         </div>
-
-        {/* Input Form Card */}
-        <div className={glassCardClass}>
-            <div className="p-4 border-b border-gray-200 dark:border-white/10 bg-gray-50/50 dark:bg-white/10">
-                <h3 className="font-semibold text-sm flex items-center gap-2">
-                    <Plus className="h-4 w-4 text-blue-500" /> New Activity Entry
-                </h3>
-            </div>
-            <div className="p-5">
-                <form onSubmit={handleAdd} className="grid grid-cols-1 md:grid-cols-12 gap-4 items-end">
-                    
-                    {/* Class Select */}
-                    <div className="md:col-span-2 space-y-1">
-                        <label className={labelClass}>Class</label>
-                        <select
-                            className={`${inputClass} h-10 px-3`}
-                            value={selectedClass}
-                            onChange={(e) => setSelectedClass(e.target.value)}
-                            required
-                        >
-                            <option value="">Select...</option>
-                            {classes.map((c) => (
-                            <option key={c.id} value={c.id} className="dark:bg-slate-900">
-                                {c.name}
-                            </option>
-                            ))}
-                        </select>
-                    </div>
-
-                    {/* Subject Select */}
-                    <div className="md:col-span-2 space-y-1">
-                        <label className={labelClass}>Subject</label>
-                        <select
-                            className={`${inputClass} h-10 px-3 disabled:opacity-50`}
-                            value={selectedSubject}
-                            onChange={(e) => setSelectedSubject(e.target.value)}
-                            required
-                            disabled={!selectedClass}
-                        >
-                            <option value="">Select...</option>
-                            {!!selectedClass &&
-                            getSubjectsForClassId(Number(selectedClass)).map((s) => (
-                                <option key={s} value={s} className="dark:bg-slate-900">
-                                {s}
-                                </option>
-                            ))}
-                        </select>
-                    </div>
-
-                    {/* Description */}
-                    <div className="md:col-span-4 space-y-1">
-                        <label className={labelClass}>Description</label>
-                        <Input
-                            type="text"
-                            placeholder="What was covered?"
-                            value={description}
-                            onChange={(e) => setDescription(e.target.value)}
-                            required
-                            className={inputClass}
-                        />
-                    </div>
-
-                    {/* Date */}
-                    <div className="md:col-span-2 space-y-1">
-                        <label className={labelClass}>Date</label>
-                        <div className="relative">
-                            <Input
-                                type="date"
-                                value={date}
-                                onChange={(e) => setDate(e.target.value)}
-                                className={`${inputClass} dark:[color-scheme:dark]`}
-                            />
-                        </div>
-                    </div>
-
-                    {/* Submit Button */}
-                    <div className="md:col-span-2">
-                        <Button 
-                            type="submit" 
-                            disabled={isPending} 
-                            className="w-full rounded-md bg-blue-600 hover:bg-blue-700 text-white shadow-lg hover:shadow-blue-500/20 transition-all"
-                        >
-                            {isPending ? <Loader2 className="animate-spin h-4 w-4" /> : <Plus className="h-4 w-4 mr-2" />} 
-                            Add
-                        </Button>
-                    </div>
-                </form>
-            </div>
-        </div>
-
-        {/* Filters Card */}
-        <div className={`${glassCardClass} p-5`}>
-            <div className="flex flex-col md:flex-row items-end gap-4">
-                <div className="w-full md:w-auto space-y-1">
-                    <label className={labelClass}>
-                        <CalendarIcon className="w-3 h-3 inline mr-1 mb-0.5" /> Start Date
-                    </label>
-                    <Input
-                        type="date"
-                        value={startDate}
-                        onChange={(e) => setStartDate(e.target.value)}
-                        className={`${inputClass} w-full md:w-48 dark:[color-scheme:dark]`}
-                    />
-                </div>
-                <div className="w-full md:w-auto space-y-1">
-                    <label className={labelClass}>
-                        <CalendarIcon className="w-3 h-3 inline mr-1 mb-0.5" /> End Date
-                    </label>
-                    <Input
-                        type="date"
-                        value={endDate}
-                        onChange={(e) => setEndDate(e.target.value)}
-                        className={`${inputClass} w-full md:w-48 dark:[color-scheme:dark]`}
-                    />
-                </div>
-                <div className="flex gap-2 w-full md:w-auto">
-                     <Button
-                        type="button"
-                        onClick={() => fetchActivities()}
-                        className="flex-1 md:flex-none rounded-md bg-gray-900 text-white hover:bg-black dark:bg-slate-200 dark:text-slate-900 dark:hover:bg-white shadow-lg"
-                    >
-                        <Filter className="mr-2 h-4 w-4" /> Apply Filter
-                    </Button>
-                    <Button
-                        type="button"
-                        variant="ghost"
-                        onClick={() => {
-                        setStartDate("");
-                        setEndDate("");
-                        }}
-                        className="flex-1 md:flex-none hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-900/20 dark:hover:text-red-400 dark:text-slate-400"
-                    >
-                        Clear
-                    </Button>
-                </div>
-            </div>
-        </div>
-
-        {/* Data Tables */}
-        {loading ? (
-           <div className="flex flex-col items-center justify-center py-20">
-             <Loader2 className="h-10 w-10 animate-spin text-blue-600 dark:text-blue-400" />
-             <p className="text-gray-500 dark:text-slate-400 mt-4 animate-pulse">Fetching records...</p>
-           </div>
-        ) : (
-          <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
-            {renderTable(group1Ids, "Junior Section", "Performance for PG, Nursery, and Prep")}
-            {renderTable(group2Ids, "Senior Section", "Performance for Classes One to Eight")}
+        {notice && (
+          <div className="rounded-lg border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-900 dark:border-blue-900/60 dark:bg-blue-950/30 dark:text-blue-200">
+            {notice}
           </div>
         )}
-      </div>
+        {canManage && (
+          <section className={glassCard}>
+            <div className="p-4 border-b border-gray-200 dark:border-white/10 bg-gray-50/50 dark:bg-white/10 flex items-center justify-between">
+              <h2 className="font-semibold text-sm flex items-center gap-2">
+                <Plus className="h-4 w-4 text-blue-500" />
+                {editingId ? 'Edit activity' : 'Create activity'}
+              </h2>
+              {editingId && (
+                <Button variant="ghost" size="sm" onClick={resetForm}>
+                  <X className="h-4 w-4 mr-1" />
+                  Cancel
+                </Button>
+              )}
+            </div>
+            <form onSubmit={saveActivity} className="p-5 grid grid-cols-1 md:grid-cols-12 gap-4">
+              <div className="md:col-span-5">
+                <label className={label}>Activity title</label>
+                <Input
+                  required
+                  value={form.title}
+                  onChange={e => updateForm('title', e.target.value)}
+                  className={input}
+                  placeholder="e.g. Science Exhibition"
+                />
+              </div>
+              <div className="md:col-span-3">
+                <label className={label}>Start date</label>
+                <Input
+                  required
+                  type="date"
+                  value={form.start_date}
+                  onChange={e => updateForm('start_date', e.target.value)}
+                  className={`${input} dark:[color-scheme:dark]`}
+                />
+              </div>
+              <div className="md:col-span-3">
+                <label className={label}>End date</label>
+                <Input
+                  type="date"
+                  value={form.end_date}
+                  onChange={e => updateForm('end_date', e.target.value)}
+                  className={`${input} dark:[color-scheme:dark]`}
+                />
+              </div>
+              <div className="md:col-span-1 flex items-end">
+                <Button
+                  type="submit"
+                  disabled={saving}
+                  className="w-full bg-blue-600 hover:bg-blue-700 text-white"
+                >
+                  {saving ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <Check className="h-4 w-4" />
+                  )}
+                </Button>
+              </div>
+              <div className="md:col-span-12">
+                <label className={label}>Activity details</label>
+                <ActivityRichEditor
+                  value={form.description}
+                  onChange={value => updateForm('description', value)}
+                  placeholder="Write the purpose, programme, instructions or checklist…"
+                />
+              </div>
+              <div className="md:col-span-3">
+                <label className={label}>Venue</label>
+                <Input
+                  value={form.venue}
+                  onChange={e => updateForm('venue', e.target.value)}
+                  className={input}
+                  placeholder="School auditorium"
+                />
+              </div>
+              <div className="md:col-span-3">
+                <label className={label}>Responsible person</label>
+                <Input
+                  value={form.responsible_name}
+                  onChange={e => updateForm('responsible_name', e.target.value)}
+                  className={input}
+                  placeholder="Name / coordinator"
+                />
+              </div>
+              <fieldset className="md:col-span-12">
+                <legend className={label}>Classes involved</legend>
+                <div className="flex flex-wrap gap-2">
+                  {classes.map(item => (
+                    <label
+                      key={item.id}
+                      className={`cursor-pointer rounded-full border px-3 py-1.5 text-sm transition-colors ${form.classIds.includes(item.id) ? 'border-blue-500 bg-blue-600 text-white' : 'border-gray-200 bg-gray-50 dark:border-white/10 dark:bg-white/5'}`}
+                    >
+                      <input
+                        className="sr-only"
+                        type="checkbox"
+                        checked={form.classIds.includes(item.id)}
+                        onChange={() => toggleClass(item.id)}
+                      />
+                      {item.name}
+                    </label>
+                  ))}
+                </div>
+              </fieldset>
+            </form>
+          </section>
+        )}
+        {isSuperadmin && (
+          <section className={`${glassCard} p-5`}>
+            <div className="flex items-center gap-2 mb-4">
+              <Users className="h-5 w-5 text-blue-500" />
+              <div>
+                <h2 className="font-semibold">Event management committee</h2>
+                <p className="text-sm text-gray-500 dark:text-slate-400">
+                  Only these members and superadmins can create or edit activities.
+                </p>
+              </div>
+            </div>
+            <div className="flex flex-col sm:flex-row gap-2">
+              <select
+                className={`${input} h-10 px-3`}
+                value={committeeProfileId}
+                onChange={e => setCommitteeProfileId(e.target.value)}
+              >
+                <option value="">Select staff member…</option>
+                {profiles
+                  .filter(profile => !profile.isCommittee)
+                  .map(profile => (
+                    <option key={profile.id} value={profile.id}>
+                      {profile.name || profile.id} {profile.role ? `(${profile.role})` : ''}
+                    </option>
+                  ))}
+              </select>
+              <Button
+                type="button"
+                onClick={addCommitteeMember}
+                className="bg-blue-600 hover:bg-blue-700 text-white"
+              >
+                <Plus className="h-4 w-4 mr-2" />
+                Add member
+              </Button>
+            </div>
+            <div className="flex flex-wrap gap-2 mt-4">
+              {profiles
+                .filter(profile => profile.isCommittee)
+                .map(profile => (
+                  <span
+                    key={profile.id}
+                    className="inline-flex items-center gap-2 rounded-full bg-blue-50 px-3 py-1.5 text-sm text-blue-800 dark:bg-blue-950/40 dark:text-blue-200"
+                  >
+                    {profile.name || profile.id}
+                    <button
+                      onClick={() => removeCommitteeMember(profile.id)}
+                      aria-label={`Remove ${profile.name || 'member'}`}
+                    >
+                      <X className="h-3.5 w-3.5" />
+                    </button>
+                  </span>
+                ))}
+              {!profiles.some(profile => profile.isCommittee) && (
+                <span className="text-sm text-gray-500">No committee members yet.</span>
+              )}
+            </div>
+          </section>
+        )}
+        <section className={`${glassCard} p-5`}>
+          <div className="flex flex-col lg:flex-row gap-4 lg:items-end justify-between">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div>
+                <label className={label}>From</label>
+                <Input
+                  type="date"
+                  value={startDate}
+                  onChange={e => setStartDate(e.target.value)}
+                  className={`${input} dark:[color-scheme:dark]`}
+                />
+              </div>
+              <div>
+                <label className={label}>To</label>
+                <Input
+                  type="date"
+                  value={endDate}
+                  onChange={e => setEndDate(e.target.value)}
+                  className={`${input} dark:[color-scheme:dark]`}
+                />
+              </div>
+            </div>
+            <Button
+              onClick={makeCalendar}
+              disabled={!startDate || !endDate}
+              className="bg-gray-900 hover:bg-black dark:bg-slate-200 dark:text-slate-900"
+            >
+              <CalendarDays className="mr-2 h-4 w-4" />
+              Download calendar PDF
+            </Button>
+          </div>
+          <p className="mt-3 text-xs text-gray-500 dark:text-slate-400">
+            The landscape report starts with an all-class colour-coded calendar, followed by one
+            calendar page for every visible class.
+          </p>
+        </section>
+        <section className={glassCard}>
+          <div className="p-4 border-b border-gray-200 dark:border-white/10">
+            <h2 className="font-semibold">Scheduled activities</h2>
+            <p className="text-sm text-gray-500 dark:text-slate-400">
+              {filteredActivities.length} activity{filteredActivities.length === 1 ? '' : 'ies'} in
+              view.
+            </p>
+          </div>
+          {loading ? (
+            <div className="flex justify-center p-14">
+              <Loader2 className="h-8 w-8 animate-spin text-blue-500" />
+            </div>
+          ) : filteredActivities.length ? (
+            <div className="divide-y divide-gray-100 dark:divide-white/5">
+              {filteredActivities.map(activity => (
+                <article
+                  key={activity.id}
+                  className="p-5 flex flex-col lg:flex-row lg:items-center gap-4 hover:bg-gray-50/70 dark:hover:bg-white/[.02]"
+                >
+                  <div className="flex-1 min-w-0">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <h3 className="font-semibold text-lg">{activity.title}</h3>
+                      <span className="rounded-full bg-blue-50 px-2.5 py-1 text-xs font-medium text-blue-700 dark:bg-blue-950/40 dark:text-blue-300">
+                        {activity.classNames.join(', ') || 'No classes'}
+                      </span>
+                    </div>
+                    <p className="mt-1 text-sm text-gray-500 dark:text-slate-400">
+                      {formatDate(activity.start_date)}
+                      {activity.end_date && activity.end_date !== activity.start_date
+                        ? ` — ${formatDate(activity.end_date)}`
+                        : ''}
+                      {activity.venue ? ` · ${activity.venue}` : ''}
+                      {activity.responsible_name ? ` · ${activity.responsible_name}` : ''}
+                    </p>
+                    {activity.description && (
+                      <div
+                        className="activity-rich-content mt-3 text-sm text-gray-700 dark:text-slate-300"
+                        dangerouslySetInnerHTML={{ __html: activity.description }}
+                      />
+                    )}
+                  </div>
+                  <div className="flex gap-2 shrink-0">
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => downloadActivityReport(activity)}
+                    >
+                      <FileText className="h-4 w-4 mr-1.5" />
+                      Brief
+                    </Button>
+                    {canManage && (
+                      <Button size="sm" variant="outline" onClick={() => editActivity(activity)}>
+                        <Edit3 className="h-4 w-4 mr-1.5" />
+                        Edit
+                      </Button>
+                    )}
+                  </div>
+                </article>
+              ))}
+            </div>
+          ) : (
+            <div className="p-14 text-center text-gray-500 dark:text-slate-400">
+              No activities match this period.
+            </div>
+          )}
+        </section>
+      </main>
     </div>
   );
 }

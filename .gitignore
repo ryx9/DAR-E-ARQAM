@@ -7,6 +7,7 @@
 /coverage
 /tests
 /supabase
+/database
 # Next.js
 /.next/
 /out/
