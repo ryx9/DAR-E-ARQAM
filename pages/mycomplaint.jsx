@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useState, useMemo, useTransition } from "react";
 import { supabase } from "../utils/supabaseClient";
+import { hasNoBlockedStaff, staffName } from "../utils/complaintStaff";
 import Navbar from "../components/Navbar";
 
 // UI component imports
@@ -94,8 +95,8 @@ export default function MyComplaints() {
       .select(`
         id, title, complaint_text, status, resolution_notes, created_at, student_id,
         students!left(name, mobilenumber, class_id),
-        assigned_to:profiles!assigned_to_user_id(id, email),
-        against_user:profiles!against_user_id(id, email)
+        assigned_to:profiles!assigned_to_user_id(id, name, is_active),
+        against_user:profiles!against_user_id(id, name, is_active)
       `)
       .or(`assigned_to_user_id.eq.${userId},against_user_id.eq.${userId}`)
       .order("created_at", { ascending: false }); // Show newest first
@@ -103,7 +104,7 @@ export default function MyComplaints() {
     if (error) {
       console.error("Error fetching user complaints:", error);
     } else {
-      setComplaints(data);
+      setComplaints((data || []).filter(hasNoBlockedStaff));
     }
   };
 
@@ -146,7 +147,9 @@ export default function MyComplaints() {
           const adminCloseMsg = `*Complaint Resolved by Staff* 👨‍🏫\n\n*Complaint:* ${
             editingComplaint.title
           }\n*Student:* ${student.name}\n*Resolved By:* ${
-            user.email
+            staffName([editingComplaint.assigned_to, editingComplaint.against_user].find(
+              profile => profile?.id === user.id
+            ))
           }\n*New Status:* ${newStatus}\n*Notes:* ${
             resolutionNotes || "N/A"
           }`;
@@ -354,7 +357,7 @@ export default function MyComplaints() {
                         <div className="flex items-center text-sm font-medium text-gray-700 dark:text-white">
                           <ShieldAlert className="w-4 h-4 mr-2 text-amber-500" />
                           <span className="text-gray-500 dark:text-gray-400 mr-1 font-normal">Against:</span> 
-                          {c.against_user?.email ?? "N/A"}
+                          {c.against_user ? staffName(c.against_user) : "N/A"}
                         </div>
                       </div>
                     </CardContent>

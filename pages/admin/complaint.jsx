@@ -1,6 +1,7 @@
 'use client';
 import { useEffect, useState, useMemo, useTransition } from 'react';
 import { supabase } from '../../utils/supabaseClient';
+import { complaintTeacherMessage, hasNoBlockedStaff, staffName } from '../../utils/complaintStaff';
 import Navbar from '../../components/Navbar';
 
 // UI component imports
@@ -109,8 +110,9 @@ export default function ComplaintsAdmin() {
       if (clsData) setClasses(clsData);
       const { data: usersData } = await supabase
         .from('profiles')
-        .select('id, email, name, mobilenumber, role, is_active')
-        .eq('is_active', true);
+        .select('id, name, mobilenumber, role, is_active')
+        .or('is_active.eq.true,is_active.is.null')
+        .order('name');
       if (usersData) setUsers(usersData);
       fetchComplaints();
     };
@@ -124,14 +126,14 @@ export default function ComplaintsAdmin() {
         `
           id, title, complaint_text, status, resolution_notes, created_at, student_id,
           students!left(name, mobilenumber, class_id),
-          assigned_to:profiles!assigned_to_user_id(id, email),
-          against_user:profiles!against_user_id(id, email)
+          assigned_to:profiles!assigned_to_user_id(id, name, is_active),
+          against_user:profiles!against_user_id(id, name, is_active)
         `
       )
       .order('created_at', { ascending: false });
 
     if (error) console.error('Error fetching complaints:', error);
-    if (cmps) setComplaints(cmps);
+    if (cmps) setComplaints(cmps.filter(hasNoBlockedStaff));
   };
 
   // Fetch students when a class is selected
@@ -184,19 +186,29 @@ export default function ComplaintsAdmin() {
       await sendMessage(mobilenumber, studentMsgReceived, selectedStudent, class_id);
       const studentMsgAssigned = `*Complaint Update* 🧑‍🏫\n\nDear Parent,\nYour complaint "*${title}*" has been assigned to a concerned staff member for review and resolution.`;
       await sendMessage(mobilenumber, studentMsgAssigned, selectedStudent, class_id);
-      const adminMsg = `*New Complaint Alert* ⚠️\n\n*Student:* ${studentName}\n*Title:* ${title}\n*Details:* ${text}\n*Against:* ${users.find(u => u.id === againstUserId)?.email || 'N/A'}\n*Assigned To:* ${assignedToUser?.email || 'N/A'}`;
+      const adminMsg = `*New Complaint Alert* ⚠️\n\n*Student:* ${studentName}\n*Title:* ${title}\n*Details:* ${text}\n*Against:* ${staffName(
+        users.find(u => u.id === againstUserId),
+        'N/A'
+      )}\n*Assigned To:* ${staffName(assignedToUser, 'Unassigned')}`;
       await sendMessage('923085333392', adminMsg, selectedStudent, class_id);
+      let teacherAlertStatus;
       try {
-        await queueTeacherAlerts(
-          [assignedToUserId, againstUserId],
-          teacher =>
-            `*Complaint Assignment*\n\nDear ${teacher.name || 'Teacher'}, you have been named in a complaint.\n\n*Title:* ${title}\n*Student:* ${studentName}\n\nPlease sign in to review the complaint details.`
+        const queued = await queueTeacherAlerts([assignedToUserId, againstUserId], teacher =>
+          complaintTeacherMessage(teacher, {
+            assignedTo: assignedToUserId,
+            against: againstUserId,
+            title,
+            studentName,
+          })
         );
+        teacherAlertStatus =
+          queued === 1 ? '1 teacher alert queued.' : `${queued} teacher alerts queued.`;
       } catch (notificationError) {
         console.error('Unable to queue teacher complaint alerts:', notificationError);
+        teacherAlertStatus = 'Teacher alerts could not be queued.';
       }
 
-      alert('Complaint lodged successfully and notifications sent!');
+      alert(`Complaint lodged successfully. ${teacherAlertStatus}`);
       fetchComplaints();
       setTitle('');
       setText('');
@@ -231,15 +243,21 @@ export default function ComplaintsAdmin() {
       const student = editingComplaint.students;
 
       if (originalComplaint.against_user?.id !== newAgainstUserId) {
-        const oldAgainst = originalComplaint.against_user?.email || 'N/A';
-        const newAgainst = users.find(u => u.id === newAgainstUserId)?.email || 'N/A';
+        const oldAgainst = staffName(originalComplaint.against_user, 'N/A');
+        const newAgainst = staffName(
+          users.find(u => u.id === newAgainstUserId),
+          'N/A'
+        );
         const adminAgainstMsg = `*Complaint Details Updated* 📝\n\n*Title:* ${editingComplaint.title}\n*Student:* ${student.name}\n\nThis complaint's *'Against'* field has been changed.\n*From:* ${oldAgainst}\n*To:* ${newAgainst}`;
         await sendMessage('923085333392', adminAgainstMsg, student.student_id, student.class_id);
       }
 
       if (originalComplaint.assigned_to?.id !== newAssignedToUserId) {
-        const oldTeacher = originalComplaint.assigned_to?.email;
-        const newTeacher = users.find(u => u.id === newAssignedToUserId)?.email;
+        const oldTeacher = staffName(originalComplaint.assigned_to, 'Unassigned');
+        const newTeacher = staffName(
+          users.find(u => u.id === newAssignedToUserId),
+          'Unassigned'
+        );
         const adminReassignMsg = `*Complaint Re-Assigned* 🔁\n\n*Title:* ${editingComplaint.title}\n*Student:* ${student.name}\n*From:* ${oldTeacher}\n*To:* ${newTeacher}`;
         await sendMessage('923085333392', adminReassignMsg, student.student_id, student.class_id);
         const studentReassignMsg = `*Complaint Update* 🧑‍🏫\n\nDear Parent,\nThere is an update on your complaint "*${editingComplaint.title}*". It has been forwarded to another staff member for further action.`;
@@ -255,15 +273,23 @@ export default function ComplaintsAdmin() {
         originalComplaint.assigned_to?.id !== newAssignedToUserId ? newAssignedToUserId : null,
         originalComplaint.against_user?.id !== newAgainstUserId ? newAgainstUserId : null,
       ];
+      let teacherAlertStatus = '';
       if (changedTeacherIds.some(Boolean)) {
         try {
-          await queueTeacherAlerts(
-            changedTeacherIds,
-            teacher =>
-              `*Complaint Assignment Update*\n\nDear ${teacher.name || 'Teacher'}, you have been assigned or named in a complaint.\n\n*Title:* ${editingComplaint.title}\n*Student:* ${student.name}\n\nPlease sign in to review the complaint details.`
+          const queued = await queueTeacherAlerts(changedTeacherIds, teacher =>
+            complaintTeacherMessage(teacher, {
+              assignedTo: newAssignedToUserId,
+              against: newAgainstUserId,
+              title: editingComplaint.title,
+              studentName: student.name,
+              isUpdate: true,
+            })
           );
+          teacherAlertStatus =
+            queued === 1 ? ' 1 teacher alert queued.' : ` ${queued} teacher alerts queued.`;
         } catch (notificationError) {
           console.error('Unable to queue teacher complaint alerts:', notificationError);
+          teacherAlertStatus = ' Teacher alerts could not be queued.';
         }
       }
 
@@ -282,7 +308,7 @@ export default function ComplaintsAdmin() {
         await sendMessage('923085333392', adminCloseMsg, student.student_id, student.class_id);
       }
 
-      alert('Complaint updated successfully!');
+      alert(`Complaint updated successfully.${teacherAlertStatus}`);
       fetchComplaints();
       setEditingComplaint(null);
     });
@@ -487,7 +513,7 @@ export default function ComplaintsAdmin() {
                         <SelectContent className="bg-white dark:bg-[#0f172a] dark:text-white">
                           {users.map(user => (
                             <SelectItem key={user.id} value={user.id}>
-                              {user.email}
+                              {staffName(user)}
                             </SelectItem>
                           ))}
                         </SelectContent>
@@ -504,7 +530,7 @@ export default function ComplaintsAdmin() {
                         <SelectContent className="bg-white dark:bg-[#0f172a] dark:text-white">
                           {users.map(user => (
                             <SelectItem key={user.id} value={user.id}>
-                              {user.email}
+                              {staffName(user)}
                             </SelectItem>
                           ))}
                         </SelectContent>
@@ -610,11 +636,11 @@ export default function ComplaintsAdmin() {
                           <div className="flex flex-col gap-1">
                             <span className="text-[10px] text-gray-500 dark:text-gray-300 flex items-center gap-1">
                               <UserCog className="w-3 h-3" /> To:{' '}
-                              {c.assigned_to?.email ?? 'Unassigned'}
+                              {c.assigned_to ? staffName(c.assigned_to) : 'Unassigned'}
                             </span>
                             <span className="text-[10px] text-red-500/70 dark:text-red-300/80 flex items-center gap-1">
                               <ShieldAlert className="w-3 h-3" /> Vs:{' '}
-                              {c.against_user?.email ?? 'N/A'}
+                              {c.against_user ? staffName(c.against_user) : 'N/A'}
                             </span>
                           </div>
                         </TableCell>
@@ -667,7 +693,7 @@ export default function ComplaintsAdmin() {
                     <SelectContent className="bg-white dark:bg-[#0f172a] dark:text-white">
                       {users.map(user => (
                         <SelectItem key={user.id} value={user.id}>
-                          {user.email}
+                          {staffName(user)}
                         </SelectItem>
                       ))}
                     </SelectContent>
@@ -684,7 +710,7 @@ export default function ComplaintsAdmin() {
                     <SelectContent className="bg-white dark:bg-[#0f172a] dark:text-white">
                       {users.map(user => (
                         <SelectItem key={user.id} value={user.id}>
-                          {user.email}
+                          {staffName(user)}
                         </SelectItem>
                       ))}
                     </SelectContent>
