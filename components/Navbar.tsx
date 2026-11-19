@@ -124,27 +124,25 @@ const ADMIN_STUDENTS: NavItem[] = [
 
 const ADMIN_OPERATIONS: NavItem[] = [
   { href: '/timetable', label: 'Timetable', icon: CalendarDays, hue: 250 },
+  { href: '/office-orders', label: 'Office orders', icon: FileText, hue: 262 },
   { href: '/admin/datesheet-builder', label: 'Datesheet Builder', icon: CalendarDays, hue: 210 },
   { href: '/admin/profiles', label: 'Manage Teachers', icon: UserCheck, hue: 262 },
   { href: '/admin/advances', label: 'Staff Advances', icon: Banknote, hue: 275 },
   { href: '/admin/complaint', label: 'Manage Complaints', icon: MessageSquareWarning, hue: 347 },
 ];
 
+const ADMIN_DESKTOP_LINKS = [
+  { href: '/admin', label: 'Overview' },
+  { href: '/dashboard', label: 'Classes' },
+  { href: '/timetable', label: 'Timetable' },
+  { href: '/office-orders', label: 'Office orders' },
+];
+
 const DESKTOP_LINKS = [
-  { href: '/admin/invoices', label: 'Invoices', roles: ['admin', 'superadmin'] },
-  { href: '/admin/crud', label: 'Manage Students', roles: ['admin', 'superadmin'] },
-  { href: '/reports', label: 'Reports', roles: ['admin', 'superadmin', 'teacher', 'user'] },
+  { href: '/reports', label: 'Reports', roles: ['teacher', 'user'] },
   { href: '/marks', label: 'Tests', roles: ['teacher', 'user'] },
-  { href: '/dashboard', label: 'Classes', roles: ['admin', 'superadmin', 'teacher', 'user'] },
-  { href: '/timetable', label: 'Timetable', roles: ['admin', 'superadmin', 'teacher'] },
-  { href: '/admin/report', label: 'Fee Reports', roles: ['admin', 'superadmin'] },
-  { href: '/admin/profiles', label: 'Manage Teachers', roles: ['admin', 'superadmin'] },
-  {
-    href: '/admin/datesheet-builder',
-    label: 'Datesheet Builder',
-    roles: ['admin', 'superadmin'],
-  },
-  { href: '/admin/payroll', label: 'Payroll attendance', roles: ['superadmin'] },
+  { href: '/dashboard', label: 'Classes', roles: ['teacher', 'user'] },
+  { href: '/timetable', label: 'Timetable', roles: ['teacher'] },
 ];
 
 const ROLE_LABELS: Record<string, string> = {
@@ -245,7 +243,12 @@ const Navbar = () => {
       ? NAV_LINKS.filter(item => item.href !== '/admin/datesheet-builder').map(item =>
           item.href === '/marks' ? { ...item, label: 'Tests' } : item
         )
-      : NAV_LINKS;
+      : isAdmin
+        ? NAV_LINKS.filter(item => item.href !== '/office-orders')
+        : NAV_LINKS;
+  const desktopLinks = isAdmin
+    ? ADMIN_DESKTOP_LINKS
+    : DESKTOP_LINKS.filter(link => userRole && link.roles.includes(userRole));
 
   const isActive = (href: string) => {
     if (href === '/admin') return pathname === '/admin';
@@ -365,28 +368,26 @@ const Navbar = () => {
             {/* Quick desktop links (same breakpoint as the original navbar) */}
             <div className="hidden min-w-0 flex-1 items-center justify-center gap-0.5 lg:flex">
               {isLoggedIn &&
-                DESKTOP_LINKS.filter(link => userRole && link.roles.includes(userRole)).map(
-                  link => {
-                    const active = isActive(link.href);
-                    return (
-                      <Link
-                        key={link.href}
-                        href={link.href}
-                        aria-current={active ? 'page' : undefined}
-                        className={`jelly-soft whitespace-nowrap rounded-full px-2.5 py-2 text-[12.5px] font-medium xl:px-3.5 xl:text-[13px] ${
-                          active
-                            ? 'bg-white/70 text-[hsl(var(--brand))] shadow-[inset_0_1px_0_rgba(255,255,255,0.9),0_4px_10px_-4px_hsl(var(--brand)/0.5)] dark:bg-white/10 dark:shadow-none'
-                            : 'text-muted-foreground hover:bg-white/50 hover:text-foreground dark:hover:bg-white/10'
-                        }`}
-                      >
-                        {link.label}
-                      </Link>
-                    );
-                  }
-                )}
+                desktopLinks.map(link => {
+                  const active = isActive(link.href);
+                  return (
+                    <Link
+                      key={link.href}
+                      href={link.href}
+                      aria-current={active ? 'page' : undefined}
+                      className={`jelly-soft whitespace-nowrap rounded-full px-2.5 py-2 text-[12.5px] font-medium xl:px-3.5 xl:text-[13px] ${
+                        active
+                          ? 'bg-white/70 text-[hsl(var(--brand))] shadow-[inset_0_1px_0_rgba(255,255,255,0.9),0_4px_10px_-4px_hsl(var(--brand)/0.5)] dark:bg-white/10 dark:shadow-none'
+                          : 'text-muted-foreground hover:bg-white/50 hover:text-foreground dark:hover:bg-white/10'
+                      }`}
+                    >
+                      {link.label}
+                    </Link>
+                  );
+                })}
             </div>
 
-            {isLoggedIn && userName && (
+            {isLoggedIn && userName && !isAdmin && (
               <span className="hidden max-w-40 truncate text-xs font-semibold text-muted-foreground xl:block">
                 Welcome back, {userName}
               </span>
