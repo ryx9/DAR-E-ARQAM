@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { useRouter } from 'next/router'
 import { supabase } from '../../utils/supabaseClient'
 import { canAccessClass, getClassAccess } from '../../utils/classAccess'
+import { queueSubjectTeacherAlerts } from '../../utils/staffNotifications'
 import { Button } from '../../components/ui/button'
 import { Input } from '../../components/ui/input'
 import Navbar from '../../components/Navbar'
@@ -18,6 +19,8 @@ interface Test {
   id: number
   class_id: number
   test_name: string
+  subject: string
+  class_name?: string
   date?: string
 }
 type MarkState = Record<string, { obtained: string; markId?: number }>
@@ -168,10 +171,12 @@ export default function MarksEntryPage() {
       if (upsertErr) throw upsertErr
 
       // 3. Send to parents if enabled
+      let parentMessageCount = 0
+      let parentQueueError: string | undefined
       if (sendToParents) {
         const displayDate = testDate ? new Date(testDate).toLocaleDateString('en-GB') : ''
         const messagesPayload = students
-          .filter((s) => !excluded.has(s.studentid))
+          .filter((s) => !excluded.has(s.studentid) && s.mobilenumber?.trim())
           .map((s) => {
             const obtained = Number(sanitizeObtained(marks[s.studentid]?.obtained || '0'))
             const percentage = parsedTotal ? ((obtained / parsedTotal) * 100).toFixed(1) : '0'
@@ -184,11 +189,26 @@ export default function MarksEntryPage() {
               sent: false
             }
           })
-        const { error: msgErr } = await supabase.from('messages').insert(messagesPayload)
-        if (msgErr) throw msgErr
+        if (messagesPayload.length) {
+          const { error: msgErr } = await supabase.from('messages').insert(messagesPayload)
+          if (msgErr) parentQueueError = msgErr.message
+          else parentMessageCount = messagesPayload.length
+        }
       }
 
-      toast({ variant: 'success', title: 'Saved', description: 'Test details and marks updated.' })
+      try {
+        await queueSubjectTeacherAlerts(test.class_id, test.subject, teacher =>
+          `*Marks Updated*\n\nDear ${teacher.name || 'Teacher'}, marks were saved for your scheduled subject.\n\nClass: ${test.class_name || test.class_id}\nSubject: ${test.subject}\nTest: ${testName}\nStudent marks saved: ${normalizedPayload.length}${parentMessageCount ? `\nParent marks messages queued: ${parentMessageCount}` : ''}`
+        )
+      } catch (error) {
+        console.error('Unable to queue marks alerts for subject teachers:', error)
+        toast({ variant: 'destructive', title: 'Teacher alerts could not be queued' })
+      }
+      if (parentQueueError) {
+        toast({ variant: 'destructive', title: 'Marks saved, but parent messages could not be queued', description: parentQueueError })
+      } else {
+        toast({ variant: 'success', title: 'Saved', description: 'Test details and marks updated.' })
+      }
       
       // Optional: Update local test object to reflect changes
       setTest(prev => prev ? { ...prev, test_name: testName, date: testDate } : null)

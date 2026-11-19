@@ -3,6 +3,7 @@
 import { useState, useEffect, Suspense } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import { supabase } from "../../utils/supabaseClient"
+import { queueSpecialClassTeacherAlerts } from "../../utils/staffNotifications"
 import Navbar from "../../components/Navbar"
 import Loader from "../../components/Loader"
 import { Button } from "../../components/ui/button"
@@ -199,6 +200,15 @@ function ManageStudentContent() {
         if (assignedId == null) throw new Error('Could not assign a student ID. Please try again.')
 
         toast({ title: "Admission Successful! 🎉" })
+        const className = classes.find(c => String(c.id) === String(formData.class_id))?.name || formData.class_id
+        try {
+          await queueSpecialClassTeacherAlerts(formData.class_id, teacher =>
+            `*New Admission*\n\nDear ${teacher.name || 'Teacher'}, a new student has joined your assigned class.\n\nClass: ${className}\nStudent: ${formData.name}\nStudent ID: ${assignedId}`
+          )
+        } catch (error) {
+          console.error('Unable to queue admission alert:', error)
+          toast({ title: 'Admission saved, but teacher alerts could not be queued', variant: 'destructive' })
+        }
 
         // 2. Generate Invoice (Mandatory)
           

@@ -12,6 +12,7 @@ import {
 } from 'lucide-react';
 import Groq from 'groq-sdk';
 import { supabase } from '../utils/supabaseClient';
+import { classMessageTeacherCopies } from '../utils/staffNotifications';
 import { canAccessClass, getClassAccess } from '../utils/classAccess';
 import {
   formatMessageTime,
@@ -286,7 +287,13 @@ export default function ComposeNotice() {
       }));
       if (payload.some(row => !row.text))
         throw Error('At least one recipient would receive an empty message.');
-      const { error } = await supabase.from('messages').insert(payload);
+      const teacherCopies = await classMessageTeacherCopies(
+        payload,
+        template.trim(),
+        new Map(selected.map(student => [String(student.class_id), student.classes?.name])),
+        { due, queuedAt, scheduledFor }
+      );
+      const { error } = await supabase.from('messages').insert([...payload, ...teacherCopies]);
       if (error) throw error;
       setReview(false);
       setTemplate('');

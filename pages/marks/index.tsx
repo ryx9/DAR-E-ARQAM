@@ -2,6 +2,7 @@ import { useEffect, useState, useCallback } from 'react';
 import Link from 'next/link';
 import { supabase } from '../../utils/supabaseClient';
 import { loadClassSubjects } from '../../utils/subjects';
+import { queueSubjectTeacherAlerts } from '../../utils/staffNotifications';
 import { canAccessClass, getClassAccess } from '../../utils/classAccess';
 import { Button } from '../../components/ui/button';
 import Navbar from '../../components/Navbar';
@@ -314,11 +315,12 @@ export default function MarksDashboard() {
     setAddingTest(true);
     try {
       const className = classes.find(item => String(item.id) === selectedClass)?.name || '';
+      const testName = newTest.test_name.trim() || `${batch.title} – ${newTest.subject.trim()}`;
       const { data: test, error: testError } = await supabase
         .from('tests')
         .insert({
           subject: newTest.subject.trim(),
-          test_name: newTest.test_name.trim() || `${batch.title} – ${newTest.subject.trim()}`,
+          test_name: testName,
           test_type: newTest.test_type,
           date: newTest.date,
           class_id: Number(selectedClass),
@@ -332,6 +334,17 @@ export default function MarksDashboard() {
         .from('datesheet_batch_tests')
         .insert({ batch_id: batch.id, test_id: test.id });
       if (linkError) throw linkError;
+      try {
+        await queueSubjectTeacherAlerts(
+          selectedClass,
+          newTest.subject.trim(),
+          teacher =>
+            `*New Test Created*\n\nDear ${teacher.name || 'Teacher'}, a test was added for your scheduled subject.\n\nClass: ${className || selectedClass}\nSubject: ${newTest.subject.trim()}\nTest: ${testName}\nDate: ${newTest.date}`
+        );
+      } catch (error) {
+        console.error('Unable to queue new test alerts:', error);
+        setSubjectError('Test added to the datesheet. Teacher alerts could not be queued.');
+      }
 
       setDatesheets(current =>
         current.map(item =>

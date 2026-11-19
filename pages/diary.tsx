@@ -1,6 +1,7 @@
 "use client";
 import { useState, useEffect } from 'react';
 import { supabase } from '../utils/supabaseClient';
+import { classMessageTeacherCopies } from '../utils/staffNotifications';
 import { canAccessClass, getClassAccess } from '../utils/classAccess';
 import Navbar from '../components/Navbar';
 import Groq from 'groq-sdk';
@@ -277,23 +278,47 @@ export default function DiaryPage() {
     }
 
     // Queue Messages
-    const { data: students } = await supabase
+    const { data: students, error: recipientsError } = await supabase
       .from('active_students')
       .select('studentid, mobilenumber')
       .eq('class_id', classId);
 
-    if (students?.length) {
-      const messages = students.map((s) => ({
+    try {
+      if (recipientsError) throw recipientsError;
+      const recipients = (students || []).filter(s => s.mobilenumber?.trim());
+      const queuedAt = new Date().toISOString();
+      const batch = crypto.randomUUID();
+      const messages = recipients.map(s => ({
         student_id: s.studentid,
         class_id: classId,
-        number: s.mobilenumber || '',
+        number: s.mobilenumber,
         text: diary,
+        type: 'notice',
+        sent: false,
         created_at: isoDate,
+        notice_batch_id: batch,
+        notice_template: diary,
+        notice_queued_at: queuedAt,
+        notice_scheduled_for: null,
       }));
-      await supabase.from('messages').insert(messages);
+      if (messages.length) {
+        const className = classes.find(c => String(c.id) === String(classId))?.name;
+        const copies = await classMessageTeacherCopies(
+          messages,
+          diary,
+          new Map([[String(classId), className]]),
+          { due: isoDate, queuedAt }
+        );
+        const { error: queueError } = await supabase.from('messages').insert([...messages, ...copies]);
+        if (queueError) throw queueError;
+        toast({ title: 'Diary saved and messages queued' });
+      } else {
+        toast({ title: 'Diary saved', description: 'No student phone numbers were available.' });
+      }
+    } catch (queueError) {
+      console.error('Unable to queue diary messages:', queueError);
+      toast({ variant: 'destructive', title: 'Diary saved, but messages could not be queued' });
     }
-
-    toast({ variant: 'default', className: "bg-green-600 text-white border-none", title: 'Success', description: 'Diary sent successfully!' });
 
     setDiary('');
     setClassId('');
