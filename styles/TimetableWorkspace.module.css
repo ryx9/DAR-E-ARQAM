@@ -1,0 +1,464 @@
+.page {
+  --page-surface: linear-gradient(180deg, #f8fafc, #eef2f7);
+  min-height: 100vh;
+  background: var(--page-surface);
+}
+:global(.dark) .page {
+  --page-surface: linear-gradient(160deg, #172337, #0f172a 48%, #111b2d);
+  --card: 217 32% 15%;
+  --muted: 216 29% 19%;
+  --border: 216 23% 26%;
+}
+.shell {
+  --ink: hsl(var(--foreground));
+  --line: hsl(var(--border));
+  --accent: hsl(var(--brand));
+  margin: 0 auto;
+  max-width: 1600px;
+  padding: clamp(16px, 2.3vw, 32px) clamp(16px, 3vw, 48px) 40px;
+  min-height: 85vh;
+  color: var(--ink);
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+.header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  background: hsl(var(--card));
+  color: var(--ink);
+  padding: clamp(16px, 2vw, 26px);
+  border-radius: 12px;
+  border: 1px solid var(--line);
+  box-shadow: 0 3px 12px hsl(var(--brand-deep) / 0.06);
+}
+.breadcrumb {
+  color: var(--accent);
+  font-size: 13px;
+}
+.header h1 {
+  margin: 5px 0 10px;
+  font-size: clamp(25px, 3vw, 39px);
+  line-height: 1.1;
+  font-weight: 650;
+  letter-spacing: -0.035em;
+}
+.status {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 13px;
+  color: hsl(var(--muted-foreground));
+}
+.status::before {
+  content: '';
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: hsl(var(--brand));
+}
+.header button {
+  min-height: 38px;
+  border-radius: 7px;
+}
+.shell button:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+.shell :is(button, input, select, summary):focus-visible {
+  outline: 3px solid hsl(var(--ring));
+  outline-offset: 2px;
+}
+.tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  border-bottom: 1px solid var(--line);
+}
+.tabs button {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 5px;
+  margin-bottom: -1px;
+  color: hsl(var(--muted-foreground));
+  background: transparent;
+  border: 0;
+  border-bottom: 3px solid transparent;
+  border-radius: 0;
+}
+.tabs button[aria-pressed='true'] {
+  color: var(--accent);
+  border-color: var(--accent);
+}
+.metrics {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+.metrics > div {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: hsl(var(--card));
+  padding: 14px 18px;
+}
+.metrics svg {
+  color: var(--accent);
+  flex-shrink: 0;
+}
+.metrics span {
+  color: hsl(var(--muted-foreground));
+  font-size: 12px;
+}
+.metrics strong {
+  display: block;
+  color: var(--ink);
+  font-size: 23px;
+  line-height: 1.2;
+}
+.planner {
+  display: grid;
+  grid-template-columns: minmax(190px, 235px) minmax(0, 1fr);
+  gap: 18px;
+  align-items: start;
+}
+.sidebar,
+.canvas {
+  min-width: 0;
+}
+.sidebar {
+  background: hsl(var(--card));
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 16px;
+}
+.sidebar h2 {
+  font-size: 15px;
+  font-weight: 700;
+  margin-bottom: 15px;
+}
+.sidebar section {
+  display: grid;
+  padding: 0;
+  border: 0;
+  gap: 12px;
+}
+.sidebar section label {
+  display: grid;
+  gap: 4px;
+  font-size: 12px;
+  color: hsl(var(--muted-foreground));
+  font-weight: 600;
+}
+.sidebar :is(input, select) {
+  max-width: 100%;
+  min-width: 0;
+}
+.sidebar details {
+  margin-top: 16px;
+  padding: 12px 0 0;
+  border: 0;
+  border-top: 1px solid var(--line);
+  border-radius: 0;
+}
+.sidebar summary {
+  font-size: 13px;
+}
+.sidebar details > div {
+  grid-template-columns: minmax(0, 1fr);
+  max-height: 52vh;
+  overflow-y: auto;
+}
+.canvas {
+  display: grid;
+  gap: 12px;
+}
+.days {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  background: hsl(var(--card));
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 6px;
+}
+.days button {
+  flex: 1 1 auto;
+  padding: 8px;
+  border: 0;
+  border-radius: 6px;
+  font-size: 13px;
+}
+.days button[aria-pressed='true'] {
+  background: var(--accent);
+}
+.canvas table {
+  font-variant-numeric: tabular-nums;
+}
+.canvas thead tr {
+  background: hsl(var(--brand-deep));
+}
+.canvas tbody td:first-child {
+  background: hsl(var(--muted));
+}
+.shell > fieldset {
+  border-color: var(--line);
+  padding: clamp(16px, 2.5vw, 32px);
+}
+.shell > fieldset form {
+  padding-bottom: 18px;
+  border-bottom: 1px solid var(--line);
+}
+.shell > fieldset section {
+  background: hsl(var(--muted));
+  border-color: var(--line);
+}
+.shell > fieldset section label {
+  background: hsl(var(--card));
+  border: 1px solid var(--line);
+}
+.shell > fieldset section label:has(input:checked),
+.shell > fieldset section label:has(input:indeterminate) {
+  border-color: hsl(var(--brand) / 0.5);
+  background: hsl(var(--brand) / 0.12);
+}
+.shell input[type='checkbox'] {
+  accent-color: var(--accent);
+}
+@media (max-width: 900px) {
+  .planner {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .sidebar section {
+    grid-template-columns: repeat(auto-fit, minmax(145px, 1fr));
+    align-items: end;
+  }
+}
+@media (max-width: 600px) {
+  .shell {
+    gap: 12px;
+    padding: 10px;
+  }
+  .metrics {
+    gap: 5px;
+  }
+  .metrics > div {
+    padding: 9px;
+    gap: 4px;
+  }
+  .metrics svg {
+    display: none;
+  }
+  .canvas table td,
+  .canvas table th {
+    padding: 7px;
+  }
+}
+.shell :global(.bg-white),
+.shell input:not([type='checkbox']):not([type='color']),
+.shell select {
+  background-color: hsl(var(--card));
+  color: var(--ink);
+  border-color: var(--line);
+}
+.shell :global(.text-slate-900) {
+  color: var(--ink);
+}
+.shell :is(:global(.text-slate-500), :global(.text-slate-600)) {
+  color: hsl(var(--muted-foreground));
+}
+.shell :global(.text-indigo-700) {
+  color: var(--accent);
+}
+.shell :is(:global(.bg-indigo-600), :global(.bg-indigo-700)) {
+  background-color: var(--accent);
+  color: hsl(var(--primary-foreground));
+}
+.shell :is(:global(.border), :global(.border-b), :global(.border-t)) {
+  border-color: var(--line);
+}
+.shell :global(.bg-indigo-50) {
+  background: hsl(var(--muted));
+  color: var(--ink);
+}
+.shell :global(.bg-amber-50) {
+  background: hsl(var(--card));
+  color: var(--ink);
+}
+.shell .tabs button {
+  background: transparent;
+  color: hsl(var(--muted-foreground));
+}
+.shell .tabs button[aria-pressed='true'] {
+  color: var(--accent);
+}
+.editBar,
+.picker {
+  display: flex;
+  gap: 0.6rem;
+  align-items: center;
+  flex-wrap: wrap;
+}
+.picker label {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 9px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+}
+.picker label:has(input:checked) {
+  background: hsl(var(--brand) / 0.09);
+  border-color: hsl(var(--brand) / 0.4);
+}
+.canvas > section {
+  row-gap: 8px;
+  padding: 12px 14px;
+}
+.gridScroll th:first-child {
+  position: sticky;
+  left: 0;
+  z-index: 1;
+  background: hsl(var(--brand-deep));
+}
+.gridScroll tbody td:first-child {
+  position: sticky;
+  left: 0;
+  z-index: 1;
+}
+.editBar {
+  justify-content: space-between;
+  padding: 0.6rem 0.8rem;
+  background: hsl(var(--card));
+  border: 1px solid var(--line);
+  border-radius: 10px;
+}
+.editBar summary,
+.gridScroll summary {
+  cursor: pointer;
+}
+.picker {
+  padding: 0.6rem 0;
+  max-height: 12rem;
+  overflow: auto;
+}
+.gridScroll {
+  overflow-x: auto;
+  max-width: 100%;
+}
+.canvas .gridScroll :is(th, td) {
+  padding: 4px 6px;
+  font-size: 0.78rem;
+  line-height: 1.25;
+}
+.gridScroll select,
+.gridScroll input:not([type='checkbox']) {
+  padding: 2px 4px;
+  font-size: 0.78rem;
+}
+.gridScroll td [class*='space-y'] > :not([hidden]) ~ :not([hidden]) {
+  margin-top: 3px;
+}
+.gridScroll [style*='--lesson-color'] {
+  background: color-mix(in srgb, var(--lesson-color) 35%, hsl(var(--card)));
+  color: var(--ink);
+}
+.unavailable {
+  background: hsl(var(--muted));
+  color: hsl(var(--muted-foreground));
+}
+.shell[data-expanded='true'] {
+  background: var(--page-surface);
+  position: fixed;
+  inset: 0;
+  z-index: 10000;
+  overflow: auto;
+  max-width: none;
+  min-height: 0;
+  padding: 12px;
+}
+.shell[data-expanded='true'] .planner {
+  display: block;
+}
+.shell[data-expanded='true'] :is(.sidebar, .metrics, .breadcrumb) {
+  display: none;
+}
+.shell[data-expanded='true'] .header {
+  padding: 8px 14px;
+}
+.shell[data-expanded='true'] .header h1 {
+  font-size: 1.2rem;
+  margin: 0;
+}
+.shell[data-building='true'] {
+  gap: 8px;
+}
+.shell[data-building='true'] .header {
+  padding: 10px 16px;
+}
+.shell[data-building='true'] .header h1 {
+  font-size: 1.3rem;
+  margin: 0;
+}
+.shell[data-building='true'] :is(.metrics, .breadcrumb) {
+  display: none;
+}
+.shell[data-building='true'] .planner {
+  display: block;
+}
+.shell[data-building='true'] .sidebar {
+  display: block;
+  margin-bottom: 8px;
+}
+.shell[data-building='true'] .sidebar section {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: end;
+}
+.shell[data-building='true'] .sidebar details > div {
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+}
+.shell[data-building='true'] .canvas {
+  gap: 6px;
+}
+.shell[data-building='true'] .editBar {
+  justify-content: flex-start;
+  padding: 5px 8px;
+  gap: 8px;
+}
+.shell[data-building='true'] .editBar > button:last-child {
+  margin-left: auto;
+}
+.shell[data-building='true'] .gridScroll {
+  max-height: 70vh;
+  overflow: auto;
+  overscroll-behavior: contain;
+}
+.shell[data-building='true'] .gridScroll th {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  background: hsl(var(--brand-deep));
+}
+.shell[data-building='true'] .gridScroll th:first-child {
+  width: 144px;
+  z-index: 3;
+}
+.shell[data-building='true'] .gridScroll :is(td, th) {
+  padding: 3px 5px;
+}
+.gridScroll tr[data-day-start='true'] td {
+  border-top: 2px solid hsl(var(--brand) / 0.5);
+}
+.rowDay {
+  display: block;
+  color: var(--accent);
+  font-weight: 650;
+  font-size: 0.68rem;
+}

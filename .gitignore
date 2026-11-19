@@ -7,6 +7,11 @@
 /coverage
 /tests
 /supabase
+!/supabase/
+/supabase/*
+!/supabase/migrations/
+/supabase/migrations/*
+!/supabase/migrations/202611190001_timetable_subjects.sql
 /database
 # Next.js
 /.next/

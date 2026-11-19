@@ -21,7 +21,7 @@ export async function getClassAccess(): Promise<ClassAccess> {
   if (role !== "teacher") return { role, classIds: null }
 
   const { data: assignments, error: assignmentsError } = await supabase
-    .from("teacher_class")
+    .from("teacher_class_access")
     .select("class")
     .eq("teacher_profile", user.id)
   if (assignmentsError) throw assignmentsError

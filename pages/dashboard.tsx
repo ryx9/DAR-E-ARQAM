@@ -18,6 +18,7 @@ import {
   BarChart2,
   ArrowUpRight,
   FileText,
+  CalendarDays,
 } from 'lucide-react';
 import {
   Dialog,
@@ -240,6 +241,12 @@ export default function Dashboard() {
               Overview of academic sessions.
             </p>
           </div>
+          <Link
+            href="/timetable"
+            className="inline-flex items-center gap-2 rounded-xl border border-blue-200 bg-white px-5 py-3 font-semibold text-blue-700 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md dark:border-blue-400/20 dark:bg-white/5 dark:text-blue-200"
+          >
+            <CalendarDays className="h-5 w-5" /> Open timetable
+          </Link>
 
           {/* ADDED: Conditionally hide the Create button if they aren't admin/superadmin */}
           {canEditOrDelete && (

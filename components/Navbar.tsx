@@ -90,6 +90,7 @@ const useRouter = () => {
 type NavItem = { href: string; label: string; icon: LucideIcon; hue: number };
 
 const NAV_LINKS: NavItem[] = [
+  { href: '/timetable', label: 'Timetable', icon: CalendarDays, hue: 250 },
   { href: '/dashboard', label: 'Dashboard', icon: LayoutGrid, hue: 217 },
   { href: '/reports', label: 'Reports', icon: BarChart2, hue: 239 },
   { href: '/marks', label: 'Tests & Marks', icon: ScrollText, hue: 160 },
@@ -122,6 +123,7 @@ const ADMIN_STUDENTS: NavItem[] = [
 ];
 
 const ADMIN_OPERATIONS: NavItem[] = [
+  { href: '/timetable', label: 'Timetable', icon: CalendarDays, hue: 250 },
   { href: '/admin/datesheet-builder', label: 'Datesheet Builder', icon: CalendarDays, hue: 210 },
   { href: '/admin/profiles', label: 'Manage Teachers', icon: UserCheck, hue: 262 },
   { href: '/admin/advances', label: 'Staff Advances', icon: Banknote, hue: 275 },
@@ -134,6 +136,7 @@ const DESKTOP_LINKS = [
   { href: '/reports', label: 'Reports', roles: ['admin', 'superadmin', 'teacher', 'user'] },
   { href: '/marks', label: 'Tests', roles: ['teacher', 'user'] },
   { href: '/dashboard', label: 'Classes', roles: ['admin', 'superadmin', 'teacher', 'user'] },
+  { href: '/timetable', label: 'Timetable', roles: ['admin', 'superadmin', 'teacher'] },
   { href: '/admin/report', label: 'Fee Reports', roles: ['admin', 'superadmin'] },
   { href: '/admin/profiles', label: 'Manage Teachers', roles: ['admin', 'superadmin'] },
   {

@@ -20,20 +20,12 @@ import { downloadDatesheetsPDF } from '../../utils/datesheetPDF';
 import { getClassAccess } from '../../utils/classAccess';
 import { queueClassTeacherAlerts } from '../../utils/staffNotifications';
 
-const subjects = [
-  'English',
-  'Urdu',
-  'Mathematics',
-  'Science',
-  'Islamiyat',
-  'Computer',
-  'Social Studies',
-  'General Knowledge',
-];
+import { loadClassSubjects } from '../../utils/subjects';
 const today = () => new Date().toISOString().slice(0, 10);
 const emptyRow = () => ({ subject: '', test_name: '', date: '' });
 
 export default function DatesheetBuilder() {
+  const [classSubjects, setClassSubjects] = useState({});
   const [classes, setClasses] = useState([]),
     [selected, setSelected] = useState([]),
     [rows, setRows] = useState([emptyRow()]);
@@ -65,6 +57,7 @@ export default function DatesheetBuilder() {
   useEffect(() => {
     (async () => {
       const access = await getClassAccess();
+      setClassSubjects(await loadClassSubjects());
       let query = supabase.from('classes').select('id,name').order('id');
       if (access.role === 'teacher') query = query.in('id', access.classIds || []);
       const { data } = await query;
@@ -191,6 +184,14 @@ export default function DatesheetBuilder() {
       return setNotice('Add at least one dated subject and select classes.');
     setBusy('tests');
     try {
+      if (
+        validRows.some(row =>
+          selected.some(id => !(classSubjects[id] || []).some(s => s.name === row.subject))
+        )
+      )
+        throw new Error(
+          'Each paper subject must be assigned to every selected class. Configure subjects in Timetable, or create separate datesheets for classes with different subjects.'
+        );
       if (
         !title.trim() ||
         validRows.length !== rows.length ||
@@ -639,7 +640,14 @@ export default function DatesheetBuilder() {
                   onChange={e => updateRow(index, 'subject', e.target.value)}
                 >
                   <option value="">Subject…</option>
-                  {subjects.map(subject => (
+                  {(selected.length
+                    ? (classSubjects[selected[0]] || [])
+                        .map(s => s.name)
+                        .filter(name =>
+                          selected.every(id => (classSubjects[id] || []).some(s => s.name === name))
+                        )
+                    : []
+                  ).map(subject => (
                     <option key={subject}>{subject}</option>
                   ))}
                 </select>

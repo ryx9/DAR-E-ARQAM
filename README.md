@@ -36,7 +36,15 @@ The secret key bypasses Row Level Security. The password API checks that the cal
 
 ## Teacher class access
 
-Teacher-facing class workflows use the `teacher_class` assignments to limit class lists and class-specific operations, including attendance, notices, diary entries, activities, tests, syllabus tracking, and reports. These browser-side checks should be paired with equivalent Supabase Row Level Security policies to protect requests made outside the app.
+Teacher-facing class workflows use `teacher_class_access` (published timetable assignments plus special `teacher_class` assignments) to limit class lists and class-specific operations, including attendance, notices, diary entries, activities, tests, syllabus tracking, and reports. These browser-side checks should be paired with equivalent Supabase Row Level Security policies to protect requests made outside the app.
+
+## Timetable and subjects
+
+Apply `supabase/migrations/202611190001_timetable_subjects.sql` after the existing migrations. Open **Timetable** from the navigation. Admins and superadmins manage the shared subject catalogue and enable subjects per class; test creation and datesheet creation use only those subjects. Existing test subjects are seeded into the catalogue with their historical class assignments. Classes without historical tests need subjects assigned before new tests or lectures can be created. For datesheets spanning several classes, the subject dropdown shows their common subjects.
+
+Superadmins configure each weekday's slots, timings and breaks. Admins and superadmins edit class/subject/staff assignments, with confirmation for multiple teachers and overlapping staff lessons. Copy a day's timings, assignments, or both to selected days; assignment-only copies require matching slot counts and map by position. Save a draft, then **Publish & queue notifications** when complete. Concurrent edits require a reload rather than overwriting another editor. Publishing atomically queues one message for each active affected staff member with a phone number, including staff removed from a slot. Queueing uses the existing sender; it does not confirm delivery. Teachers see the published timetable and can download overall, classwise and teacherwise branded PDFs. Choosing “All” downloads all groups in the selected report type.
+
+Teacher class access uses `teacher_class_access`, the union of the published timetable and special assignments maintained in Manage Teachers. Removing timetable lessons removes that source of access while retaining special assignments. Drafts do not grant access. This follows the existing application's browser-side access model. Existing classes, including any sections represented as separate classes, are reused; the project has no separate academic-session model, so this module maintains one current weekly timetable.
 
 ## Payroll and attendance
 

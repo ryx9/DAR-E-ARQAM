@@ -1,6 +1,7 @@
 import { useEffect, useState, useCallback } from 'react';
 import Link from 'next/link';
 import { supabase } from '../../utils/supabaseClient';
+import { loadClassSubjects } from '../../utils/subjects';
 import { canAccessClass, getClassAccess } from '../../utils/classAccess';
 import { Button } from '../../components/ui/button';
 import Navbar from '../../components/Navbar';
@@ -56,6 +57,10 @@ interface DatesheetBatch {
 const PAGE_SIZE = 20;
 
 export default function MarksDashboard() {
+  const [classSubjects, setClassSubjects] = useState<
+    Record<string, { id: number; name: string }[]>
+  >({});
+  const [subjectError, setSubjectError] = useState('');
   const [tests, setTests] = useState<Test[]>([]);
   const [loading, setLoading] = useState(false);
   const [classes, setClasses] = useState<ClassData[]>([]);
@@ -75,6 +80,14 @@ export default function MarksDashboard() {
 
   // Filters
   const [selectedClass, setSelectedClass] = useState<string>('');
+  const subjectOptions = classSubjects[selectedClass] || [];
+  useEffect(() => {
+    setNewTest(current => ({ ...current, subject: '' }));
+    setSubjectError('');
+    loadClassSubjects()
+      .then(setClassSubjects)
+      .catch(error => setSubjectError(error.message));
+  }, [selectedClass]);
   const [selectedType, setSelectedType] = useState<string>('');
 
   // Pagination State
@@ -260,6 +273,12 @@ export default function MarksDashboard() {
   };
 
   const handleSaveEdit = async (id: number) => {
+    if (!subjectOptions.some(s => s.name === editForm.subject)) {
+      setSubjectError(
+        'Choose a subject assigned to this class in Timetable → Subjects & class assignments.'
+      );
+      return;
+    }
     if (!canAccessClass(await getClassAccess(), selectedClass)) return;
     setLoading(true);
     const { error } = await supabase
@@ -283,6 +302,10 @@ export default function MarksDashboard() {
   };
 
   const addTestToDatesheet = async () => {
+    if (!subjectOptions.some(s => s.name === newTest.subject)) {
+      setSubjectError('Choose a subject assigned to this class.');
+      return;
+    }
     const batch = datesheets.find(item => String(item.id) === selectedDatesheet);
     if (!batch || !selectedClass || !newTest.subject.trim() || !newTest.date) return;
     if (!batch.classIds.includes(Number(selectedClass))) return;
@@ -356,6 +379,14 @@ export default function MarksDashboard() {
 
       <div className="container mx-auto max-w-6xl p-4 md:p-8 space-y-8">
         <AssessmentNav />
+        {subjectError && (
+          <p
+            role="alert"
+            className="rounded border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800"
+          >
+            {subjectError}
+          </p>
+        )}
 
         {/* Header Section */}
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
@@ -479,14 +510,26 @@ export default function MarksDashboard() {
               </Button>
             </div>
             <div className="grid gap-3 md:grid-cols-4">
-              <input
+              <select
                 value={newTest.subject}
                 onChange={event =>
                   setNewTest(current => ({ ...current, subject: event.target.value }))
                 }
-                placeholder="Subject"
                 className="h-10 rounded-md border border-gray-200 bg-white px-3 text-sm dark:border-white/10 dark:bg-white/10"
-              />
+              >
+                <option value="">Select class subject</option>
+                {subjectOptions.map(s => (
+                  <option key={s.id} value={s.name}>
+                    {s.name}
+                  </option>
+                ))}
+              </select>
+              {(!subjectOptions.length || subjectError) && (
+                <p role="status" className="text-sm text-amber-700">
+                  {subjectError ||
+                    'No subjects assigned. Ask an admin to configure this class in Timetable → Subjects & class assignments.'}
+                </p>
+              )}
               <input
                 value={newTest.test_name}
                 onChange={event =>
@@ -575,7 +618,6 @@ export default function MarksDashboard() {
                             {isEditing ? (
                               <div className="space-y-2">
                                 <input
-                                  type="text"
                                   value={editForm.test_name || ''}
                                   onChange={e =>
                                     setEditForm({ ...editForm, test_name: e.target.value })
@@ -583,15 +625,20 @@ export default function MarksDashboard() {
                                   className="w-full text-sm border border-gray-300 dark:border-slate-600 rounded px-2 py-1 bg-white dark:bg-slate-800"
                                   placeholder="Test Name"
                                 />
-                                <input
-                                  type="text"
+                                <select
                                   value={editForm.subject || ''}
                                   onChange={e =>
                                     setEditForm({ ...editForm, subject: e.target.value })
                                   }
                                   className="w-full text-xs border border-gray-300 dark:border-slate-600 rounded px-2 py-1 bg-white dark:bg-slate-800 text-gray-500"
-                                  placeholder="Subject"
-                                />
+                                >
+                                  <option value="">Choose assigned subject</option>
+                                  {subjectOptions.map(s => (
+                                    <option key={s.id} value={s.name}>
+                                      {s.name}
+                                    </option>
+                                  ))}
+                                </select>
                               </div>
                             ) : (
                               <>

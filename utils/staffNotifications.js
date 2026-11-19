@@ -26,7 +26,7 @@ export async function queueClassTeacherAlerts(classIds, createText) {
   const ids = [...new Set((classIds || []).filter(Boolean).map(String))];
   if (!ids.length) return 0;
   const { data, error } = await supabase
-    .from('teacher_class')
+    .from('teacher_class_access')
     .select('teacher_profile')
     .in('class', ids);
   if (error) throw error;

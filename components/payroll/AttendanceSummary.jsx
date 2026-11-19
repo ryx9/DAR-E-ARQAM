@@ -11,7 +11,7 @@ export default function AttendanceSummary({ rows, period }) {
   useEffect(() => {
     Promise.all([
       supabase.from('classes').select('id,name'),
-      supabase.from('teacher_class').select('teacher_profile,class'),
+      supabase.from('teacher_class_access').select('teacher_profile,class'),
     ]).then(([c, a]) => {
       if (c.error || a.error) setError((c.error || a.error).message);
       else {

@@ -14,6 +14,7 @@ import {
 } from "lucide-react"
 import { motion, AnimatePresence } from "framer-motion"
 import { useToast } from "../../hooks/use-toast"
+import { timetableRows } from "../../utils/timetable.mjs"
 
 export default function ProfilesPage() {
   const { toast } = useToast()
@@ -22,6 +23,7 @@ export default function ProfilesPage() {
   const [profiles, setProfiles] = useState([])
   const [allProfiles, setAllProfiles] = useState([])
   const [availableClasses, setAvailableClasses] = useState([])
+  const [timetableClasses, setTimetableClasses] = useState([])
   
   // Filters
   const [filterRoles, setFilterRoles] = useState([])
@@ -132,6 +134,7 @@ export default function ProfilesPage() {
 
   // Edit Modal Handlers
   const openEditModal = async (profile) => {
+    setTimetableClasses([])
     setEditingProfile(profile.id)
     setNewPassword("")
     setConfirmPassword("")
@@ -147,6 +150,8 @@ export default function ProfilesPage() {
     
     // Fetch currently assigned classes using new schema fields
     if (profile.role === 'teacher') {
+      const { data: timetable } = await supabase.from('school_timetable').select('published').eq('id', 1).maybeSingle()
+      setTimetableClasses([...new Set(timetableRows(timetable?.published).filter(row => row.teacherIds.includes(profile.id)).map(row => String(row.classId)))])
       const { data, error } = await supabase
         .from("teacher_class")
         .select("class") 
@@ -667,8 +672,9 @@ export default function ProfilesPage() {
                           className="pt-2 border-t border-gray-100 dark:border-slate-800"
                         >
                           <label className="block text-xs font-bold text-gray-500 dark:text-slate-400 uppercase tracking-wider mb-2">
-                            Assigned Classes
+                            Special class assignments (in addition to published timetable)
                           </label>
+                          <p className="mb-3 text-sm text-gray-500">From published timetable: {timetableClasses.map(id => availableClasses.find(c => String(c.id) === id)?.name || id).join(', ') || 'None'}. Change those assignments in Timetable; the checkboxes below grant extra access.</p>
                           <div className="bg-gray-50 dark:bg-slate-800/50 p-3 rounded-lg border border-gray-200 dark:border-slate-700 max-h-48 overflow-y-auto">
                             {availableClasses.length === 0 ? (
                               <p className="text-sm text-gray-500 dark:text-slate-400 italic">No classes available.</p>
