@@ -231,14 +231,18 @@ export default function AdminDashboard() {
           bg: 'bg-blue-50 dark:bg-blue-900/20',
           border: 'group-hover:border-blue-200 dark:group-hover:border-blue-800',
         },
-        {
-          label: 'Manage Teachers',
-          icon: UserCheck,
-          href: '/admin/profiles',
-          color: 'text-violet-600 dark:text-violet-400',
-          bg: 'bg-violet-50 dark:bg-violet-900/20',
-          border: 'group-hover:border-violet-200 dark:group-hover:border-violet-800',
-        },
+        ...(isSuperadmin
+          ? [
+              {
+                label: 'Manage Teachers',
+                icon: UserCheck,
+                href: '/admin/profiles',
+                color: 'text-violet-600 dark:text-violet-400',
+                bg: 'bg-violet-50 dark:bg-violet-900/20',
+                border: 'group-hover:border-violet-200 dark:group-hover:border-violet-800',
+              },
+            ]
+          : []),
         {
           label: 'Staff Advances',
           icon: Banknote,

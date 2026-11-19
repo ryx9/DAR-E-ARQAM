@@ -126,13 +126,16 @@ const ADMIN_OPERATIONS: NavItem[] = [
   { href: '/timetable', label: 'Timetable', icon: CalendarDays, hue: 250 },
   { href: '/office-orders', label: 'Office orders', icon: FileText, hue: 262 },
   { href: '/admin/datesheet-builder', label: 'Datesheet Builder', icon: CalendarDays, hue: 210 },
-  { href: '/admin/profiles', label: 'Manage Teachers', icon: UserCheck, hue: 262 },
   { href: '/admin/advances', label: 'Staff Advances', icon: Banknote, hue: 275 },
   { href: '/admin/complaint', label: 'Manage Complaints', icon: MessageSquareWarning, hue: 347 },
 ];
 
 const ADMIN_DESKTOP_LINKS = [
   { href: '/admin', label: 'Overview' },
+  { href: '/admin/invoices', label: 'Fee invoices' },
+  { href: '/admin/report', label: 'Fee reports' },
+  { href: '/admin/receipts', label: 'Fee receipts' },
+  { href: '/admin/crud', label: 'Manage students' },
   { href: '/dashboard', label: 'Classes' },
   { href: '/timetable', label: 'Timetable' },
   { href: '/office-orders', label: 'Office orders' },
@@ -375,7 +378,11 @@ const Navbar = () => {
                       key={link.href}
                       href={link.href}
                       aria-current={active ? 'page' : undefined}
-                      className={`jelly-soft whitespace-nowrap rounded-full px-2.5 py-2 text-[12.5px] font-medium xl:px-3.5 xl:text-[13px] ${
+                      className={`jelly-soft whitespace-nowrap rounded-full py-2 font-medium ${
+                        isAdmin
+                          ? 'px-2 text-xs xl:px-3 xl:text-[13px]'
+                          : 'px-2.5 text-[12.5px] xl:px-3.5 xl:text-[13px]'
+                      } ${
                         active
                           ? 'bg-white/70 text-[hsl(var(--brand))] shadow-[inset_0_1px_0_rgba(255,255,255,0.9),0_4px_10px_-4px_hsl(var(--brand)/0.5)] dark:bg-white/10 dark:shadow-none'
                           : 'text-muted-foreground hover:bg-white/50 hover:text-foreground dark:hover:bg-white/10'
@@ -542,6 +549,12 @@ const Navbar = () => {
                 userRole === 'superadmin'
                   ? [
                       ...ADMIN_OPERATIONS,
+                      {
+                        href: '/admin/profiles',
+                        label: 'Manage Teachers',
+                        icon: UserCheck,
+                        hue: 262,
+                      },
                       {
                         href: '/admin/payroll',
                         label: 'Payroll attendance',

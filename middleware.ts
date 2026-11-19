@@ -58,12 +58,22 @@ export async function middleware(request: NextRequest) {
   // 2. Strict Active Check on Server
   const { data: profile } = await supabase
     .from('profiles')
-    .select('is_active')
+    .select('is_active,role')
     .eq('id', user.id)
     .single()
 
   if (!profile || profile.is_active === false) {
     return NextResponse.redirect(new URL('/login', request.url))
+  }
+
+  if (
+    (pathname === '/admin/profiles' || pathname.startsWith('/admin/profiles/')) &&
+    profile.role?.toLowerCase() !== 'superadmin'
+  ) {
+    const isAdmin = profile.role?.toLowerCase() === 'admin'
+    const redirect = NextResponse.redirect(new URL(isAdmin ? '/admin' : '/dashboard', request.url))
+    supabaseResponse.cookies.getAll().forEach(cookie => redirect.cookies.set(cookie))
+    return redirect
   }
 
   return supabaseResponse
