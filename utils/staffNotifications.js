@@ -24,9 +24,11 @@ export async function queueTeacherAlerts(profileIds, createText) {
     text: createText(profile),
   }));
   if (!payload.length) return 0;
-  const { error: insertError } = await supabase.from('messages').insert(payload);
+  const { count, error: insertError } = await supabase
+    .from('messages')
+    .insert(payload, { count: 'exact' });
   if (insertError) throw insertError;
-  return payload.length;
+  return count ?? 0;
 }
 
 export async function queueClassTeacherAlerts(classIds, createText) {

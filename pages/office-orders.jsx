@@ -157,16 +157,19 @@ export default function OfficeOrders() {
         setNotice('There are no assigned active recipients with a mobile number to alert.');
         return;
       }
-      const { error } = await supabase.from('messages').insert(
+      const { count, error } = await supabase.from('messages').insert(
         recipients.map(teacher => ({
           number: teacher.mobilenumber,
           sent: false,
           text: `*Office Order Reminder*\n\nDear ${teacher.name || 'Staff member'}, please review the office order assigned to you.\n\n*${order.order_number}* — ${order.title}\nIssued: ${formatDate(order.issued_on)}\n\nPlease sign in to read the full order.`,
-        }))
+        })),
+        { count: 'exact' }
       );
       if (error) throw error;
       setNotice(
-        `${recipients.length} WhatsApp alert${recipients.length === 1 ? '' : 's'} queued for this office order.`
+        count
+          ? `${count} WhatsApp alert${count === 1 ? '' : 's'} queued for this office order.`
+          : 'These office order reminders are already queued or sent.'
       );
     } catch (error) {
       setNotice(error.message || 'Unable to queue office-order alerts.');
@@ -224,15 +227,16 @@ export default function OfficeOrders() {
           item => form.recipientIds.map(String).includes(String(item.id)) && item.mobilenumber
         );
         if (recipients.length) {
-          const { error: messageError } = await supabase.from('messages').insert(
+          const { count, error: messageError } = await supabase.from('messages').insert(
             recipients.map(teacher => ({
               number: teacher.mobilenumber,
               sent: false,
               text: `*New Office Order*\n\nDear ${teacher.name || 'Teacher'}, a new office order has been issued.\n\n*${payload.order_number}* — ${payload.title}\nIssued: ${formatDate(payload.issued_on)}\n\nPlease sign in to review the full order.`,
-            }))
+            })),
+            { count: 'exact' }
           );
           if (messageError) throw messageError;
-          queued = recipients.length;
+          queued = count ?? 0;
         }
       }
       setNotice(

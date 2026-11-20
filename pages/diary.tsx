@@ -1,7 +1,6 @@
 "use client";
 import { useState, useEffect } from 'react';
 import { supabase } from '../utils/supabaseClient';
-import { classMessageTeacherCopies } from '../utils/staffNotifications';
 import { canAccessClass, getClassAccess } from '../utils/classAccess';
 import Navbar from '../components/Navbar';
 import Groq from 'groq-sdk';
@@ -302,14 +301,7 @@ export default function DiaryPage() {
         notice_scheduled_for: null,
       }));
       if (messages.length) {
-        const className = classes.find(c => String(c.id) === String(classId))?.name;
-        const copies = await classMessageTeacherCopies(
-          messages,
-          diary,
-          new Map([[String(classId), className]]),
-          { due: isoDate, queuedAt }
-        );
-        const { error: queueError } = await supabase.from('messages').insert([...messages, ...copies]);
+        const { error: queueError } = await supabase.from('messages').insert(messages);
         if (queueError) throw queueError;
         toast({ title: 'Diary saved and messages queued' });
       } else {

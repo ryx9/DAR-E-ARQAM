@@ -12,6 +12,7 @@
 !/supabase/migrations/
 /supabase/migrations/*
 !/supabase/migrations/202611190001_timetable_subjects.sql
+!/supabase/migrations/202611200001_teacher_message_dedup.sql
 /database
 # Next.js
 /.next/

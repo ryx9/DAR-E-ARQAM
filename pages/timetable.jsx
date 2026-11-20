@@ -204,7 +204,7 @@ export default function Timetable() {
       if (publish) {
         setEditing(false);
         setNotice(
-          `Published. ${data.queued} message(s) queued for ${data.affected} affected staff; ${data.affected - data.queued} had no phone number. Queueing does not confirm delivery.`
+          `Published. ${data.queued} message(s) queued for ${data.affected} affected staff. ${data.affected - (data.reachable ?? data.queued)} had no phone number.${data.reachable > data.queued ? ` ${data.reachable - data.queued} duplicate message(s) skipped.` : ''} Queueing does not confirm delivery.`
         );
       } else setNotice('Draft saved. Teachers still see the published timetable.');
     } catch (e) {
