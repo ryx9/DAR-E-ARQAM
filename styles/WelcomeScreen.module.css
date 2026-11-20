@@ -1,0 +1,80 @@
+.screen {
+  display: grid;
+  place-items: center;
+  min-height: 100dvh;
+  padding: 1.5rem;
+  text-align: center;
+  color: hsl(var(--foreground));
+  background: radial-gradient(ellipse at 50% 36%, hsl(var(--brand) / 0.13), transparent 55%),
+    hsl(var(--background));
+}
+.content {
+  width: min(100%, 40rem);
+}
+.emblem {
+  display: grid;
+  place-items: center;
+  width: 4.5rem;
+  height: 4.5rem;
+  margin: 0 auto 1.15rem;
+  border-radius: 1.35rem;
+  color: white;
+  background: linear-gradient(145deg, hsl(var(--brand)), hsl(var(--brand-deep)));
+  box-shadow: 0 10px 30px hsl(var(--brand) / 0.24);
+  animation: welcome-in 0.45s ease-out both;
+}
+.school {
+  font-size: 0.72rem;
+  font-weight: 750;
+  letter-spacing: 0.18em;
+  color: hsl(var(--brand));
+}
+.greeting {
+  margin-top: 0.5rem;
+  font-size: clamp(1.65rem, 4.5vw, 2.9rem);
+  font-weight: 750;
+  letter-spacing: -0.035em;
+  overflow-wrap: anywhere;
+  animation: welcome-in 0.45s ease-out both;
+}
+.progress {
+  width: 7.5rem;
+  height: 3px;
+  margin: 1.6rem auto 0;
+  overflow: hidden;
+  border-radius: 100px;
+  background: hsl(var(--brand) / 0.15);
+}
+.progress span {
+  display: block;
+  width: 42%;
+  height: 100%;
+  border-radius: inherit;
+  background: hsl(var(--brand));
+  animation: welcome-progress 1s ease-in-out infinite alternate;
+}
+@keyframes welcome-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@keyframes welcome-progress {
+  from {
+    transform: translateX(0);
+  }
+  to {
+    transform: translateX(138%);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .emblem,
+  .greeting,
+  .progress span {
+    animation: none;
+  }
+}

@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { supabase } from '../utils/supabaseClient';
+import { accessMigrationPending } from '../utils/adminDataAccess';
 
 export default function StudentRecordsPage() {
     const [studentId, setStudentId] = useState('');
@@ -50,11 +51,13 @@ export default function StudentRecordsPage() {
         const startDate = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
 
         try {
-            const { data: studentData, error: studentErr } = await supabase
-                .from('students')
-                .select('name, mobilenumber, class_id')
-                .eq('studentid', studentId)
-                .single();
+            let { data: studentData, error: studentErr } = await supabase.rpc('lookup_public_student', {
+                p_das: studentId, p_page: 'parents'
+            });
+            if (accessMigrationPending(studentErr)) {
+                ({ data: studentData, error: studentErr } = await supabase.from('students')
+                    .select('name, mobilenumber, class_id').eq('studentid', studentId).single());
+            }
 
             if (studentErr || !studentData) {
                 throw new Error("Student ID not found. Please check and try again.");

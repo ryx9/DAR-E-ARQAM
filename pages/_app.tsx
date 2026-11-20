@@ -1,11 +1,14 @@
 import '../styles/globals.css';
 import type { AppProps } from 'next/app';
+import type { User } from '@supabase/supabase-js';
 import { ThemeProvider } from 'next-themes';
 import { Toaster } from '../components/ui/toaster';
-import { useEffect, useState, useRef } from 'react';
+import { useEffect, useState } from 'react';
 import { supabase } from '../utils/supabaseClient';
+import { loadSchoolAccess, type SchoolAccess } from '../utils/adminDataAccess';
+import { SchoolSession } from '../utils/schoolSession';
 import { useRouter } from 'next/router';
-import Loader from '../components/Loader';
+import WelcomeScreen from '../components/WelcomeScreen';
 
 const OPEN_ROUTES = [
   '/login',
@@ -16,134 +19,155 @@ const OPEN_ROUTES = [
   '/res',
   '/res1',
 ];
+const EMPTY_SESSION = {
+  user: null as User | null,
+  access: null as SchoolAccess | null,
+  loading: true,
+  error: '',
+};
 
-const useAuth = () => {
-  const [authState, setAuthState] = useState({
-    user: null as any | null,
-    isActive: null as boolean | null,
-    loading: true,
-  });
-
-  // Prevent duplicate execution from auth listeners
-  const isCheckingRef = useRef(false);
-
+function useAuth(retry: number) {
+  const [state, setState] = useState(EMPTY_SESSION);
   useEffect(() => {
     let mounted = true;
+    let generation = 0;
+    let task: ReturnType<typeof setTimeout> | undefined;
 
-    const verifyActiveAndSetState = async (sessionUser: any | null) => {
-      if (!sessionUser) {
-        if (mounted) setAuthState({ user: null, isActive: null, loading: false });
+    function signedOut() {
+      localStorage.removeItem('UserRole');
+      setState({ ...EMPTY_SESSION, loading: false });
+    }
+
+    async function verify(user: User | null, check: number) {
+      if (!mounted || check !== generation) return;
+      if (!user) {
+        signedOut();
         return;
       }
-
-      if (isCheckingRef.current) return;
-      isCheckingRef.current = true;
-
-      // Strict DB check BEFORE setting loading to false
-      const { data, error } = await supabase
-        .from('profiles')
-        .select('is_active')
-        .eq('id', sessionUser.id)
-        .single();
-
-      const isActive = !error && data?.is_active === true;
-
-      if (!isActive) {
-        await supabase.auth.signOut();
-        if (mounted) {
-          setAuthState({ user: null, isActive: false, loading: false });
+      let deadline: ReturnType<typeof setTimeout> | undefined;
+      try {
+        const { data: access, error } = await Promise.race([
+          loadSchoolAccess(supabase, user.id),
+          new Promise<never>((_, reject) => {
+            deadline = setTimeout(
+              () => reject(new Error('Unable to verify your account. Try again shortly.')),
+              8_000
+            );
+          }),
+        ]);
+        if (!mounted || check !== generation) return;
+        if (error) throw error;
+        if (!access || access.is_active === false) {
+          signedOut();
+          void supabase.auth.signOut();
+          return;
         }
-      } else {
-        if (mounted) {
-          setAuthState({ user: sessionUser, isActive: true, loading: false });
+        localStorage.setItem('UserRole', access.role ?? 'user');
+        setState({ user, access, loading: false, error: '' });
+      } catch (error) {
+        if (mounted && check === generation) {
+          console.error('Could not verify school access', error);
+          setState({
+            ...EMPTY_SESSION,
+            loading: false,
+            error: 'Unable to verify your account. Try again shortly.',
+          });
         }
+      } finally {
+        clearTimeout(deadline);
       }
+    }
 
-      isCheckingRef.current = false;
-    };
-
-    // Single initialization pass
-    const init = async () => {
-      const {
-        data: { session },
-      } = await supabase.auth.getSession();
-      await verifyActiveAndSetState(session?.user ?? null);
-    };
-
-    init();
-
-    // Listen to explicit auth updates (e.g. Sign in / Sign out)
+    setState(EMPTY_SESSION);
+    const startup = setTimeout(() => {
+      if (mounted)
+        setState({
+          ...EMPTY_SESSION,
+          loading: false,
+          error: 'Unable to verify your account. Try again shortly.',
+        });
+    }, 8_000);
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange((event, session) => {
-      if (event === 'SIGNED_IN') {
-        verifyActiveAndSetState(session?.user ?? null);
-      } else if (event === 'SIGNED_OUT') {
-        if (mounted) setAuthState({ user: null, isActive: null, loading: false });
-      }
+      if (
+        !['INITIAL_SESSION', 'SIGNED_IN', 'SIGNED_OUT', 'TOKEN_REFRESHED', 'USER_UPDATED'].includes(
+          event
+        )
+      )
+        return;
+      clearTimeout(startup);
+      const check = ++generation;
+      clearTimeout(task);
+      // Run outside Supabase's auth callback so profile requests can use its session.
+      task = setTimeout(() => {
+        void verify(session?.user ?? null, check);
+      }, 0);
     });
-
     return () => {
       mounted = false;
+      clearTimeout(startup);
+      clearTimeout(task);
       subscription.unsubscribe();
     };
-  }, []);
+  }, [retry]);
+  return state;
+}
 
-  return authState;
-};
-
-function MyApp({ Component, pageProps }: AppProps) {
-  const { user, loading, isActive } = useAuth();
+export default function MyApp({ Component, pageProps }: AppProps) {
+  const [retry, setRetry] = useState(0);
+  const [welcomedUser, setWelcomedUser] = useState<string | null>(null);
+  const { user, access, loading, error } = useAuth(retry);
   const router = useRouter();
-
-  const isClient = typeof window !== 'undefined';
-  const userRole = isClient ? localStorage.getItem('UserRole') : null;
-  const isAdmin = userRole === 'admin' || userRole === 'superadmin';
-  const adminPageAllowed = isAdmin;
-
-  const isPublicRoute = OPEN_ROUTES.some(route => router.pathname.startsWith(route));
+  const isAdmin = access?.role === 'admin' || access?.role === 'superadmin';
+  const isPublic = OPEN_ROUTES.some(
+    path => router.pathname === path || router.pathname.startsWith(path + '/')
+  );
+  const redirect =
+    !loading && !error && !isPublic
+      ? !user
+        ? '/login'
+        : router.pathname.startsWith('/admin') && !isAdmin
+          ? '/'
+          : router.pathname === '/' && isAdmin
+            ? '/admin'
+            : null
+      : null;
+  const greeting = !isPublic && !loading && Boolean(user && user.id !== welcomedUser) && !error;
+  const name = access?.name?.trim();
 
   useEffect(() => {
-    if (loading) return;
-
-    const currentPath = router.pathname;
-
-    if (isActive === false && currentPath !== '/login') {
-      router.replace('/login');
-      return;
-    }
-
-    if (!user && !isPublicRoute && currentPath !== '/login') {
-      router.replace('/login');
-      return;
-    }
-
-    if (user) {
-      if (currentPath.startsWith('/admin') && !adminPageAllowed) {
-        router.replace('/');
-      } else if (currentPath === '/' && isAdmin) {
-        router.replace('/admin');
-      }
-    }
-  }, [user, loading, isActive, isPublicRoute, isAdmin, adminPageAllowed, router.pathname]);
-
-  if (loading && !isPublicRoute) {
-    return (
-      <div className="flex h-screen items-center justify-center">
-        <Loader fullScreen />
-      </div>
-    );
-  }
-
-  if (!loading && !user && !isPublicRoute && router.pathname !== '/login') return null;
-  if (!loading && user && router.pathname.startsWith('/admin') && !adminPageAllowed) return null;
+    if (redirect) void router.replace(redirect);
+  }, [redirect, router]);
+  useEffect(() => {
+    if (!greeting || !user) return;
+    const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    const timer = setTimeout(() => setWelcomedUser(user.id), reducedMotion ? 450 : 850);
+    return () => clearTimeout(timer);
+  }, [greeting, user?.id]);
 
   return (
     <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
-      <Component {...pageProps} />
-      <Toaster />
+      <SchoolSession.Provider value={{ access, loading }}>
+        {isPublic || (!loading && !greeting && !redirect && !error) ? (
+          <Component {...pageProps} />
+        ) : error ? (
+          <main className="grid min-h-screen place-items-center bg-background p-6 text-foreground">
+            <div className="space-y-3 text-center" role="alert">
+              <p>{error}</p>
+              <button
+                className="rounded-lg border px-4 py-2"
+                onClick={() => setRetry(value => value + 1)}
+              >
+                Try again
+              </button>
+            </div>
+          </main>
+        ) : (
+          <WelcomeScreen name={name} />
+        )}
+        <Toaster />
+      </SchoolSession.Provider>
     </ThemeProvider>
   );
 }
-
-export default MyApp;

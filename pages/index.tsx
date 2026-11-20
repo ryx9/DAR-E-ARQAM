@@ -3,6 +3,8 @@ import Link from 'next/link';
 import { useRouter } from 'next/router';
 import { supabase } from '../utils/supabaseClient';
 import Navbar from '../components/Navbar';
+import SchoolTools from '../components/SchoolTools';
+import { useSchoolSession } from '../utils/schoolSession';
 import { getClassAccess } from '../utils/classAccess';
 import { motion, AnimatePresence } from 'framer-motion';
 
@@ -21,16 +23,6 @@ import { useToast } from '../hooks/use-toast';
 
 // Icons
 import {
-  LayoutGrid,
-  ScrollText,
-  FileSpreadsheet,
-  FileText,
-  BookOpenCheck,
-  Sparkles,
-  UserCheck,
-  BellRing,
-  Wallet,
-  ShieldAlert,
   User,
   ChevronRight,
   GraduationCap,
@@ -41,104 +33,9 @@ import {
   Layers,
   Users,
   Calendar,
-  CalendarDays,
-  Banknote,
   Bot,
   Wand2,
-  MessageSquare,
 } from 'lucide-react';
-
-// ----- Config: All Links Restored -----
-const NAV_LINKS = [
-  {
-    href: '/dashboard',
-    label: 'Dashboard',
-    icon: LayoutGrid,
-    color: 'text-blue-600 dark:text-blue-400',
-    bg: 'bg-blue-50 dark:bg-blue-900/20',
-    border: 'group-hover:border-blue-200 dark:group-hover:border-blue-800',
-  },
-  {
-    href: '/marks',
-    label: 'Tests',
-    icon: ScrollText,
-    color: 'text-emerald-600 dark:text-emerald-400',
-    bg: 'bg-emerald-50 dark:bg-emerald-900/20',
-    border: 'group-hover:border-emerald-200 dark:group-hover:border-emerald-800',
-  },
-  {
-    href: '/reports',
-    label: 'Reports',
-    icon: FileSpreadsheet,
-    color: 'text-cyan-600 dark:text-cyan-400',
-    bg: 'bg-cyan-50 dark:bg-cyan-900/20',
-    border: 'group-hover:border-cyan-200 dark:group-hover:border-cyan-800',
-  },
-  {
-    href: '/syllabus',
-    label: 'Syllabus',
-    icon: BookOpenCheck,
-    color: 'text-violet-600 dark:text-violet-400',
-    bg: 'bg-violet-50 dark:bg-violet-900/20',
-    border: 'group-hover:border-violet-200 dark:group-hover:border-violet-800',
-  },
-  {
-    href: '/parent-communication',
-    label: 'Parent communication',
-    icon: MessageSquare,
-    color: 'text-pink-600 dark:text-pink-400',
-    bg: 'bg-pink-50 dark:bg-pink-900/20',
-    border: 'group-hover:border-pink-200 dark:group-hover:border-pink-800',
-  },
-  {
-    href: '/activities',
-    label: 'Activities',
-    icon: Sparkles,
-    color: 'text-fuchsia-600 dark:text-fuchsia-400',
-    bg: 'bg-fuchsia-50 dark:bg-fuchsia-900/20',
-    border: 'group-hover:border-fuchsia-200 dark:group-hover:border-fuchsia-800',
-  },
-  {
-    href: '/office-orders',
-    label: 'Office orders',
-    icon: FileText,
-    color: 'text-purple-700 dark:text-purple-300',
-    bg: 'bg-purple-50 dark:bg-purple-900/20',
-    border: 'group-hover:border-purple-200 dark:group-hover:border-purple-800',
-  },
-  {
-    href: '/attendance-record/report',
-    label: 'Attendance',
-    icon: UserCheck,
-    color: 'text-teal-600 dark:text-teal-400',
-    bg: 'bg-teal-50 dark:bg-teal-900/20',
-    border: 'group-hover:border-teal-200 dark:group-hover:border-teal-800',
-  },
-  {
-    href: '/advance',
-    label: 'Advance',
-    icon: Wallet,
-    color: 'text-green-600 dark:text-green-400',
-    bg: 'bg-green-50 dark:bg-green-900/20',
-    border: 'group-hover:border-green-200 dark:group-hover:border-green-800',
-  },
-  {
-    href: '/my-salary',
-    label: 'My salary',
-    icon: Banknote,
-    color: 'text-indigo-600 dark:text-indigo-400',
-    bg: 'bg-indigo-50 dark:bg-indigo-900/20',
-    border: 'group-hover:border-indigo-200 dark:group-hover:border-indigo-800',
-  },
-  {
-    href: '/mycomplaint',
-    label: 'Complaints',
-    icon: ShieldAlert,
-    color: 'text-rose-600 dark:text-rose-400',
-    bg: 'bg-rose-50 dark:bg-rose-900/20',
-    border: 'group-hover:border-rose-200 dark:group-hover:border-rose-800',
-  },
-];
 
 // ----- Helper: Pagination -----
 const fetchWithPagination = async (query: any) => {
@@ -172,12 +69,12 @@ interface Class {
 
 // ----- Main Component -----
 const DashboardHome = () => {
-  // Page A State
-  const [isLoggedIn, setIsLoggedIn] = useState(false);
-  const [userEmail, setUserEmail] = useState<string>('');
-  const [userName, setUserName] = useState<string>('');
-  const [userRole, setUserRole] = useState<string | null>(null); // NEW: Track UserRole
   const router = useRouter();
+  // Page A State
+  const { access } = useSchoolSession();
+  const isLoggedIn = Boolean(access);
+  const userName = access?.name?.trim();
+  const userRole = access?.role;
 
   // Page B State (Class Logic)
   const [classes, setClasses] = useState<Class[]>([]);
@@ -193,34 +90,9 @@ const DashboardHome = () => {
 
   const { toast } = useToast();
 
-  // ----- Effects -----
   useEffect(() => {
-    // NEW: Fetch UserRole from localStorage safely on mount
-    if (typeof window !== 'undefined') {
-      setUserRole(localStorage.getItem('UserRole'));
-    }
-    checkSession();
-    fetchClasses();
+    void fetchClasses();
   }, []);
-
-  const checkSession = async () => {
-    const { data } = await supabase.auth.getUser();
-
-    if (data.user) {
-      setIsLoggedIn(true);
-      setUserEmail(data.user.email || '');
-      const { data: profile } = await supabase
-        .from('profiles')
-        .select('name')
-        .eq('id', data.user.id)
-        .maybeSingle();
-      setUserName(profile?.name || data.user.email?.split('@')[0] || '');
-    } else {
-      setIsLoggedIn(false);
-      setUserEmail('');
-      setUserName('');
-    }
-  };
 
   const fetchClasses = async () => {
     setIsLoading(true);
@@ -373,11 +245,6 @@ const DashboardHome = () => {
             {isLoggedIn ? (
               <div className="flex flex-col gap-1">
                 <span>Welcome back{userName ? `, ${userName}` : ''}</span>
-                {userEmail && (
-                  <span className="text-sm md:text-lg text-indigo-500 font-medium">
-                    {userEmail}
-                  </span>
-                )}
               </div>
             ) : (
               'Welcome to Portal'
@@ -419,53 +286,10 @@ const DashboardHome = () => {
           </div>
         </div>
 
-        {/* 3. Portal Apps Grid */}
-        <div>
-          <div className="flex items-center justify-between mb-4 border-b border-gray-200 dark:border-gray-800 pb-3">
-            <h2 className="text-sm md:text-base font-bold text-slate-800 dark:text-slate-100 flex items-center gap-2">
-              <LayoutGrid className="w-4 h-4 text-indigo-500" />
-              Portal Apps
-            </h2>
-          </div>
-
-          <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 gap-2 md:gap-4">
-            {NAV_LINKS.filter(
-              link =>
-                link.href !== '/my-salary' ||
-                ['teacher', 'admin', 'superadmin'].includes(userRole || '')
-            ).map(link => {
-              const Icon = link.icon;
-              return (
-                <Link
-                  key={link.href}
-                  href={link.href}
-                  className={`
-                      group relative flex flex-col p-2.5 md:p-4 rounded-xl md:rounded-2xl
-                      bg-white dark:bg-slate-900/50
-                      border border-gray-100 dark:border-gray-800
-                      ${link.border}
-                      hover:shadow-lg hover:shadow-gray-200/50 dark:hover:shadow-black/40
-                      transition-all duration-300 ease-out hover:-translate-y-1
-                    `}
-                >
-                  <div className="flex items-start justify-between mb-2 md:mb-3">
-                    <div
-                      className={`w-8 h-8 md:w-9 md:h-9 rounded-lg md:rounded-xl flex items-center justify-center ${link.bg} ${link.color}`}
-                    >
-                      <Icon size={16} className="md:w-[18px] md:h-[18px]" />
-                    </div>
-                    <div className="opacity-0 group-hover:opacity-100 transition-opacity text-gray-300 hidden md:block">
-                      <ChevronRight size={14} />
-                    </div>
-                  </div>
-                  <h3 className="text-xs md:text-sm font-bold text-slate-700 dark:text-slate-200 truncate">
-                    {link.label}
-                  </h3>
-                </Link>
-              );
-            })}
-          </div>
-        </div>
+        <section aria-label="School tools">
+          <h2 className="mb-3 text-base font-bold text-foreground">School tools</h2>
+          <SchoolTools />
+        </section>
 
         {/* 4. Academic Classes */}
         <div>

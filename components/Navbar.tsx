@@ -3,35 +3,15 @@
 import React, { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import {
-  Moon,
-  Sun,
-  LayoutGrid,
-  ScrollText,
-  FileText,
-  Users,
-  BookOpenCheck,
-  NotebookPen,
-  Sparkles,
-  UserCheck,
-  Wallet,
-  ShieldAlert,
-  User,
-  X,
-  Menu,
-  ChevronRight,
-  Power,
-  Zap,
-  BarChart2,
-  FilePlus,
-  Banknote,
-  HelpCircle,
-  MessageSquareWarning,
-  MessageCircle,
-  CalendarDays,
-} from 'lucide-react';
-import type { LucideIcon } from 'lucide-react';
+import { useTheme } from 'next-themes';
+import { Moon, Sun, User, X, Menu, ChevronRight, Power, Zap } from 'lucide-react';
 import { supabase } from '../utils/supabaseClient';
+import {
+  desktopSchoolLinks,
+  drawerSchoolNavigation,
+  type SchoolLink,
+} from '../utils/schoolNavigation';
+import { useSchoolSession } from '../utils/schoolSession';
 
 /* ==========================================================================
    Design notes
@@ -43,110 +23,13 @@ import { supabase } from '../utils/supabaseClient';
      original navbar. Between lg and xl the pill is slightly more compact.
    - Each app has a single `hue`; the icon chip colours are derived from it
      (soft in light mode, glowing in dark mode), so the set looks cohesive.
-   - The one bold element in the menu is the AI notice banner.
    ========================================================================== */
 
-// ----- Types & Hooks -----
-type Theme = 'light' | 'dark';
-
-/* Module-level memory.
-   If every page renders its own <Navbar />, the navbar is re-created on each
-   page change. These values live outside React, so they survive client-side
-   navigation: the entrance animation plays once, and the auth / theme state
-   starts from what was already known instead of popping in again. A full page
-   reload resets them, which is the right moment to play the intro again. */
 let introPlayed = false;
-let authCache: { isLoggedIn: boolean; userRole: string | null; userName: string | null } | null =
-  null;
-let themeCache: Theme | null = null;
-
-const useTheme = () => {
-  const [theme, setThemeState] = useState<Theme>(themeCache ?? 'light');
-  const [mounted, setMounted] = useState(themeCache !== null);
-
-  useEffect(() => {
-    const stored = (localStorage.getItem('theme') as Theme) || 'light';
-    themeCache = stored;
-    setThemeState(stored);
-    setMounted(true);
-    document.documentElement.classList.toggle('dark', stored === 'dark');
-  }, []);
-
-  const setTheme = (t: Theme) => {
-    themeCache = t;
-    localStorage.setItem('theme', t);
-    setThemeState(t);
-    document.documentElement.classList.toggle('dark', t === 'dark');
-  };
-
-  return { theme, setTheme, mounted };
-};
 
 const useRouter = () => {
   return { push: (p: string) => (window.location.href = p) };
 };
-
-// ----- Config -----
-type NavItem = { href: string; label: string; icon: LucideIcon; hue: number };
-
-const NAV_LINKS: NavItem[] = [
-  { href: '/timetable', label: 'Timetable', icon: CalendarDays, hue: 250 },
-  { href: '/dashboard', label: 'Dashboard', icon: LayoutGrid, hue: 217 },
-  { href: '/reports', label: 'Reports', icon: BarChart2, hue: 239 },
-  { href: '/marks', label: 'Tests & Marks', icon: ScrollText, hue: 160 },
-  { href: '/attendance-record/report', label: 'Attendance', icon: UserCheck, hue: 173 },
-  { href: '/syllabus', label: 'Syllabus', icon: BookOpenCheck, hue: 262 },
-  { href: '/parent-communication', label: 'Parent communication', icon: MessageCircle, hue: 330 },
-  { href: '/activities', label: 'Activities', icon: Sparkles, hue: 292 },
-  { href: '/office-orders', label: 'Office orders', icon: FileText, hue: 262 },
-  { href: '/admin/datesheet-builder', label: 'Datesheet Builder', icon: CalendarDays, hue: 210 },
-  { href: '/advance', label: 'Advance', icon: Wallet, hue: 142 },
-  { href: '/my-salary', label: 'My salary', icon: Banknote, hue: 220 },
-  { href: '/mycomplaint', label: 'Complaints', icon: ShieldAlert, hue: 347 },
-];
-
-const ADMIN_OVERVIEW: NavItem[] = [
-  { href: '/admin', label: 'Admin Overview', icon: LayoutGrid, hue: 217 },
-];
-
-const ADMIN_FEES: NavItem[] = [
-  { href: '/admin/fee/generate', label: 'Generate Fee', icon: FilePlus, hue: 160 },
-  { href: '/admin/receipts', label: 'Fee Receipts', icon: Wallet, hue: 142 },
-  { href: '/admin/invoices', label: 'All Invoices', icon: FileText, hue: 173 },
-  { href: '/admin/report', label: 'Fee Reports', icon: BarChart2, hue: 188 },
-];
-
-const ADMIN_STUDENTS: NavItem[] = [
-  { href: '/admin/managestudent', label: 'Admissions', icon: FileText, hue: 217 },
-  { href: '/admin/crud', label: 'Student Records', icon: Users, hue: 239 },
-  { href: '/admin/inquiries', label: 'Inquiries', icon: HelpCircle, hue: 40 },
-];
-
-const ADMIN_OPERATIONS: NavItem[] = [
-  { href: '/timetable', label: 'Timetable', icon: CalendarDays, hue: 250 },
-  { href: '/office-orders', label: 'Office orders', icon: FileText, hue: 262 },
-  { href: '/admin/datesheet-builder', label: 'Datesheet Builder', icon: CalendarDays, hue: 210 },
-  { href: '/admin/advances', label: 'Staff Advances', icon: Banknote, hue: 275 },
-  { href: '/admin/complaint', label: 'Manage Complaints', icon: MessageSquareWarning, hue: 347 },
-];
-
-const ADMIN_DESKTOP_LINKS = [
-  { href: '/admin', label: 'Overview' },
-  { href: '/admin/invoices', label: 'Fee invoices' },
-  { href: '/admin/report', label: 'Fee reports' },
-  { href: '/admin/receipts', label: 'Fee receipts' },
-  { href: '/admin/crud', label: 'Manage students' },
-  { href: '/dashboard', label: 'Classes' },
-  { href: '/timetable', label: 'Timetable' },
-  { href: '/office-orders', label: 'Office orders' },
-];
-
-const DESKTOP_LINKS = [
-  { href: '/reports', label: 'Reports', roles: ['teacher', 'user'] },
-  { href: '/marks', label: 'Tests', roles: ['teacher', 'user'] },
-  { href: '/dashboard', label: 'Classes', roles: ['teacher', 'user'] },
-  { href: '/timetable', label: 'Timetable', roles: ['teacher'] },
-];
 
 const ROLE_LABELS: Record<string, string> = {
   superadmin: 'Super admin',
@@ -162,12 +45,14 @@ const BRAND_BUTTON =
 // ----- Component -----
 
 const Navbar = () => {
-  const { theme, setTheme, mounted } = useTheme();
+  const { resolvedTheme: theme, setTheme } = useTheme();
+  const [mounted, setMounted] = useState(false);
   const [isOpen, setIsOpen] = useState(false);
-  const [isLoggedIn, setIsLoggedIn] = useState(authCache?.isLoggedIn ?? false);
-  const [authReady, setAuthReady] = useState(authCache !== null);
-  const [userRole, setUserRole] = useState<string | null>(authCache?.userRole ?? null);
-  const [userName, setUserName] = useState<string | null>(authCache?.userName ?? null);
+  const { access, loading } = useSchoolSession();
+  const isLoggedIn = Boolean(access);
+  const authReady = !loading;
+  const userRole = access?.role ?? null;
+  const userName = access?.name?.trim();
   // true only for the very first render after a full page load
   const [playIntro] = useState(() => !introPlayed);
   const router = useRouter();
@@ -175,48 +60,7 @@ const Navbar = () => {
 
   useEffect(() => {
     introPlayed = true;
-  }, []);
-
-  // ----- Auth -----
-  useEffect(() => {
-    let active = true;
-    const loadProfile = async () => {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-      if (!active) return;
-      setIsLoggedIn(!!user);
-      if (!user) {
-        authCache = { isLoggedIn: false, userRole: null, userName: null };
-        setUserRole(null);
-        setUserName(null);
-        setAuthReady(true);
-        return;
-      }
-      const { data: profile } = await supabase
-        .from('profiles')
-        .select('role,name')
-        .eq('id', user.id)
-        .single();
-      if (active) {
-        const role = profile?.role?.toLowerCase() || null;
-        const name = profile?.name?.trim() || user.email?.split('@')[0] || null;
-        authCache = { isLoggedIn: true, userRole: role, userName: name };
-        setUserRole(role);
-        setUserName(name);
-        setAuthReady(true);
-      }
-    };
-    void loadProfile();
-    const {
-      data: { subscription },
-    } = supabase.auth.onAuthStateChange(() => {
-      void loadProfile();
-    });
-    return () => {
-      active = false;
-      subscription.unsubscribe();
-    };
+    setMounted(true);
   }, []);
 
   // Close the menu whenever the page changes
@@ -241,29 +85,23 @@ const Navbar = () => {
 
   const isAdmin = userRole === 'admin' || userRole === 'superadmin';
   const roleLabel = userRole ? (ROLE_LABELS[userRole] ?? userRole) : null;
-  const academicLinks =
-    userRole === 'teacher'
-      ? NAV_LINKS.filter(item => item.href !== '/admin/datesheet-builder').map(item =>
-          item.href === '/marks' ? { ...item, label: 'Tests' } : item
-        )
-      : isAdmin
-        ? NAV_LINKS.filter(item => item.href !== '/office-orders')
-        : NAV_LINKS;
-  const desktopLinks = isAdmin
-    ? ADMIN_DESKTOP_LINKS
-    : DESKTOP_LINKS.filter(link => userRole && link.roles.includes(userRole));
+  const sections = drawerSchoolNavigation(access);
+  const desktopLinks = desktopSchoolLinks(access);
 
   const isActive = (href: string) => {
-    if (href === '/admin') return pathname === '/admin';
-    return pathname === href || pathname.startsWith(href + '/');
+    if (pathname === href) return true;
+    if (href === '/admin' || !pathname.startsWith(href + '/')) return false;
+    return !sections.some(section =>
+      section.links.some(
+        link =>
+          link.href.startsWith(href + '/') &&
+          (pathname === link.href || pathname.startsWith(link.href + '/'))
+      )
+    );
   };
 
   const handleSignOut = async () => {
     setIsOpen(false);
-    setIsLoggedIn(false);
-    setUserRole(null);
-    setUserName(null);
-    authCache = { isLoggedIn: false, userRole: null, userName: null };
     localStorage.removeItem('UserRole');
     try {
       await supabase.auth.signOut();
@@ -285,38 +123,42 @@ const Navbar = () => {
   };
 
   // ----- Menu section (heading + grid of apps) -----
-  const renderSection = (title: string, items: NavItem[]) => (
-    <section className="mb-5 last:mb-0">
-      <h3 className="mb-2 px-1 text-xs font-semibold text-muted-foreground">{title}</h3>
-      <div className="grid grid-cols-2 gap-1.5 md:grid-cols-3">
-        {items.map(item => {
-          const Icon = item.icon;
-          const active = isActive(item.href);
-          return (
-            <Link
-              key={item.href}
-              href={item.href}
-              onClick={() => setIsOpen(false)}
-              aria-current={active ? 'page' : undefined}
-              style={{ '--h': item.hue } as React.CSSProperties}
-              className={`jelly-soft group flex items-center gap-3 rounded-2xl px-2.5 py-2 ${
-                active
-                  ? 'bg-[hsl(var(--brand)/0.09)] ring-1 ring-inset ring-[hsl(var(--brand)/0.28)]'
-                  : 'hover:bg-muted'
-              }`}
-            >
-              <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[hsl(var(--h)_80%_94%)] text-[hsl(var(--h)_62%_38%)] shadow-[inset_0_1px_1px_rgba(255,255,255,0.8)] dark:bg-[hsl(var(--h)_60%_55%/0.16)] dark:text-[hsl(var(--h)_85%_75%)] dark:shadow-none">
-                <Icon size={18} strokeWidth={2} />
-              </span>
-              <span className="truncate text-[13.5px] font-medium text-foreground">
-                {item.label}
-              </span>
-            </Link>
-          );
-        })}
-      </div>
-    </section>
-  );
+  const renderSection = (title: string, items: SchoolLink[]) => {
+    return (
+      <section className="mb-5 last:mb-0">
+        <h3 className="mb-2 border-b border-border/70 px-1 pb-1.5 text-xs font-semibold text-muted-foreground">
+          {title}
+        </h3>
+        <div className="grid grid-cols-2 gap-1.5 md:grid-cols-3">
+          {items.map(item => {
+            const Icon = item.icon;
+            const active = isActive(item.href);
+            return (
+              <Link
+                key={item.href}
+                href={item.href}
+                onClick={() => setIsOpen(false)}
+                aria-current={active ? 'page' : undefined}
+                style={{ '--h': item.hue } as React.CSSProperties}
+                className={`jelly-soft group flex items-center gap-3 rounded-2xl px-2.5 py-2 ${
+                  active
+                    ? 'bg-[hsl(var(--brand)/0.09)] ring-1 ring-inset ring-[hsl(var(--brand)/0.28)]'
+                    : 'hover:bg-muted'
+                }`}
+              >
+                <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[hsl(var(--h)_80%_94%)] text-[hsl(var(--h)_62%_38%)] shadow-[inset_0_1px_1px_rgba(255,255,255,0.8)] dark:bg-[hsl(var(--h)_60%_55%/0.16)] dark:text-[hsl(var(--h)_85%_75%)] dark:shadow-none">
+                  <Icon size={18} strokeWidth={2} />
+                </span>
+                <span className="min-w-0 text-[13.5px] font-medium leading-snug text-foreground">
+                  {item.label}
+                </span>
+              </Link>
+            );
+          })}
+        </div>
+      </section>
+    );
+  };
 
   return (
     <>
@@ -338,7 +180,7 @@ const Navbar = () => {
           <div className="relative flex h-full items-center justify-between gap-3 px-2.5 sm:px-3">
             {/* Logo */}
             <Link
-              href="/"
+              href={isAdmin ? '/admin' : '/'}
               className="group flex select-none items-center gap-3"
               aria-label="Dar-e-Arqam home"
             >
@@ -394,12 +236,6 @@ const Navbar = () => {
                 })}
             </div>
 
-            {isLoggedIn && userName && !isAdmin && (
-              <span className="hidden max-w-40 truncate text-xs font-semibold text-muted-foreground xl:block">
-                Welcome back, {userName}
-              </span>
-            )}
-
             {/* Right actions */}
             <div className="flex shrink-0 items-center gap-1.5 sm:gap-2">
               {authReady && !isLoggedIn && (
@@ -425,14 +261,19 @@ const Navbar = () => {
                 onClick={() => setIsOpen(!isOpen)}
                 aria-expanded={isOpen}
                 aria-controls="nav-drawer"
-                aria-label={isOpen ? 'Close menu' : 'Open menu'}
-                className={`jelly flex h-11 w-11 items-center justify-center rounded-full ${
+                aria-label={isOpen ? 'Close menu' : isLoggedIn ? 'Open all tools' : 'Open menu'}
+                className={`jelly flex h-11 w-11 items-center justify-center gap-2 rounded-full ${isLoggedIn ? 'lg:w-auto lg:px-3.5' : ''} ${
                   isOpen
                     ? BRAND_BUTTON
                     : 'bg-white/60 text-foreground shadow-[inset_0_1px_1px_rgba(255,255,255,0.9),0_6px_14px_-8px_hsl(var(--brand)/0.5)] hover:bg-white/80 dark:bg-white/10 dark:shadow-none dark:hover:bg-white/15'
                 }`}
               >
                 {isOpen ? <X size={20} /> : <Menu size={20} />}
+                {isLoggedIn && (
+                  <span className="hidden whitespace-nowrap text-xs font-semibold lg:inline">
+                    {isOpen ? 'Close' : 'All tools'}
+                  </span>
+                )}
               </button>
             </div>
           </div>
@@ -501,71 +342,11 @@ const Navbar = () => {
               ))}
           </div>
 
-          {/* AI notice banner: the one bold element in the menu */}
-          <Link
-            href="/notice"
-            onClick={() => setIsOpen(false)}
-            className="jelly-soft group mb-6 block rounded-3xl p-4 text-white shadow-[0_14px_30px_-16px_hsl(var(--brand-deep)/0.8)]"
-            style={{
-              backgroundColor: 'hsl(var(--brand-deep))',
-              backgroundImage:
-                'radial-gradient(ellipse 80% 140% at 100% 0%, hsl(var(--brand) / 0.55), transparent 65%), radial-gradient(ellipse 60% 120% at 0% 100%, hsl(268 85% 60% / 0.35), transparent 65%)',
-            }}
-          >
-            <div className="flex items-center justify-between gap-4">
-              <div className="flex min-w-0 items-center gap-3.5">
-                <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-white/15 ring-1 ring-inset ring-white/20">
-                  <Sparkles size={22} />
-                </span>
-                <div className="min-w-0">
-                  <div className="flex items-center gap-2">
-                    <h4 className="truncate text-[15px] font-bold leading-tight">
-                      Send notice to students
-                    </h4>
-                    <span className="rounded-full bg-white/20 px-2 py-0.5 text-[10px] font-bold leading-none">
-                      AI
-                    </span>
-                  </div>
-                  <p className="mt-1 text-xs text-white/80">
-                    Send AI-powered personalized messages.
-                  </p>
-                </div>
-              </div>
-              <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-white/15 transition-colors group-hover:bg-white/30">
-                <ChevronRight size={17} />
-              </span>
-            </div>
-          </Link>
-
-          {/* Navigation */}
-          {isLoggedIn && renderSection('Academic and utilities', academicLinks)}
-          {isLoggedIn && isAdmin && (
-            <>
-              {renderSection('Administration', ADMIN_OVERVIEW)}
-              {renderSection('Fee management', ADMIN_FEES)}
-              {renderSection('Students', ADMIN_STUDENTS)}
-              {renderSection(
-                'Operations and HR',
-                userRole === 'superadmin'
-                  ? [
-                      ...ADMIN_OPERATIONS,
-                      {
-                        href: '/admin/profiles',
-                        label: 'Manage Teachers',
-                        icon: UserCheck,
-                        hue: 262,
-                      },
-                      {
-                        href: '/admin/payroll',
-                        label: 'Payroll attendance',
-                        icon: Banknote,
-                        hue: 220,
-                      },
-                    ]
-                  : ADMIN_OPERATIONS
-              )}
-            </>
-          )}
+          {sections.map(section => (
+            <React.Fragment key={section.title}>
+              {renderSection(section.title, section.links)}
+            </React.Fragment>
+          ))}
         </div>
       </div>
 

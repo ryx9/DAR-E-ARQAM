@@ -13,6 +13,8 @@
 /supabase/migrations/*
 !/supabase/migrations/202611190001_timetable_subjects.sql
 !/supabase/migrations/202611200001_teacher_message_dedup.sql
+!/supabase/migrations/202611200002_daily_rounds.sql
+!/supabase/migrations/202611200003_admin_data_access.sql
 /database
 # Next.js
 /.next/

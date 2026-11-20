@@ -6,6 +6,8 @@ import { useRouter } from 'next/router';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
 import Navbar from '../components/Navbar';
+import SchoolTools from '../components/SchoolTools';
+import { useSchoolSession } from '../utils/schoolSession';
 import Loader from '../components/Loader';
 import {
   Plus,
@@ -15,9 +17,6 @@ import {
   Calendar,
   ArrowRight,
   Layers,
-  BarChart2,
-  ArrowUpRight,
-  FileText,
   CalendarDays,
 } from 'lucide-react';
 import {
@@ -78,20 +77,16 @@ export default function Dashboard() {
   const [deleteClassId, setDeleteClassId] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
-  // ADDED: State to hold the user's role
-  const [userRole, setUserRole] = useState<string | null>(null);
+  const { access } = useSchoolSession();
+  const userRole = access?.role;
 
   const router = useRouter();
   const { toast } = useToast();
 
-  // ADDED: Check local storage for user role on mount
   useEffect(() => {
-    fetchClasses();
-    const storedRole = localStorage.getItem('UserRole');
-    setUserRole(storedRole);
+    void fetchClasses();
   }, []);
 
-  // ADDED: Helper boolean to check permissions
   const canEditOrDelete = userRole === 'admin' || userRole === 'superadmin';
 
   const fetchClasses = async () => {
@@ -285,61 +280,12 @@ export default function Dashboard() {
           )}
         </div>
 
-        {/* ACADEMIC REPORTS */}
-        <div className="grid grid-cols-1 gap-4">
-          <Link
-            href="/reports"
-            className="group relative flex flex-col justify-between p-5 rounded-3xl border border-indigo-200/80 dark:border-indigo-500/20 bg-gradient-to-br from-indigo-50/80 via-white to-white dark:from-indigo-950/30 dark:via-slate-900 dark:to-slate-900 shadow-md hover:shadow-xl hover:shadow-indigo-500/10 hover:-translate-y-1 transition-all duration-300"
-          >
-            <div>
-              <div className="flex items-center justify-between mb-3">
-                <div className="w-10 h-10 rounded-2xl bg-indigo-600 text-white flex items-center justify-center shadow-md shadow-indigo-500/20 group-hover:scale-110 transition-transform">
-                  <BarChart2 className="w-5 h-5" />
-                </div>
-                <span className="text-[10px] font-black uppercase tracking-wider px-2.5 py-1 rounded-full bg-indigo-100 dark:bg-indigo-900/50 text-indigo-700 dark:text-indigo-300">
-                  Analytics Hub
-                </span>
-              </div>
-              <h3 className="font-extrabold text-lg text-slate-900 dark:text-white group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition-colors">
-                Academic Reports
-              </h3>
-              <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 line-clamp-2">
-                Analytics, grade sheets, class comparisons, student report cards, and WhatsApp in
-                one place.
-              </p>
-            </div>
-            <div className="mt-4 pt-3 border-t border-slate-100 dark:border-white/5 flex items-center justify-between text-xs font-bold text-indigo-600 dark:text-indigo-400">
-              <span>Open Reports</span>
-              <ArrowUpRight className="w-4 h-4 group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-transform" />
-            </div>
-          </Link>
-
-          <Link
-            href="/office-orders"
-            className="group relative flex flex-col justify-between p-5 rounded-3xl border border-purple-200/80 dark:border-purple-500/20 bg-gradient-to-br from-purple-50/80 via-white to-white dark:from-purple-950/30 dark:via-slate-900 dark:to-slate-900 shadow-md hover:shadow-xl hover:shadow-purple-500/10 hover:-translate-y-1 transition-all duration-300"
-          >
-            <div>
-              <div className="flex items-center justify-between mb-3">
-                <div className="w-10 h-10 rounded-2xl bg-purple-700 text-white flex items-center justify-center shadow-md shadow-purple-500/20 group-hover:scale-110 transition-transform">
-                  <FileText className="w-5 h-5" />
-                </div>
-                <span className="text-[10px] font-black uppercase tracking-wider px-2.5 py-1 rounded-full bg-purple-100 dark:bg-purple-900/50 text-purple-700 dark:text-purple-300">
-                  Staff notices
-                </span>
-              </div>
-              <h3 className="font-extrabold text-lg text-slate-900 dark:text-white group-hover:text-purple-700 dark:group-hover:text-purple-300 transition-colors">
-                Office Orders
-              </h3>
-              <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 line-clamp-2">
-                Read the official orders assigned to you and open printable copies when required.
-              </p>
-            </div>
-            <div className="mt-4 pt-3 border-t border-slate-100 dark:border-white/5 flex items-center justify-between text-xs font-bold text-purple-700 dark:text-purple-300">
-              <span>Open Office Orders</span>
-              <ArrowUpRight className="w-4 h-4 group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-transform" />
-            </div>
-          </Link>
-        </div>
+        <details className="rounded-xl border bg-card p-4">
+          <summary className="cursor-pointer font-semibold text-foreground">School tools</summary>
+          <div className="mt-4">
+            <SchoolTools exclude={['/dashboard', '/timetable']} />
+          </div>
+        </details>
 
         {/* PREMIUM CARD GRID */}
         <motion.div layout className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">

@@ -13,6 +13,7 @@ import {
   Sparkles,
 } from 'lucide-react';
 import { supabase } from '../utils/supabaseClient';
+import { accessMigrationPending } from '../utils/adminDataAccess';
 
 const fmt = value =>
   new Date(`${value}T00:00:00`).toLocaleDateString('en-GB', {
@@ -39,11 +40,17 @@ export default function Datesheets() {
     setStudent(null);
     setBatches([]);
     try {
-      const { data: profile, error: studentError } = await supabase
-        .from('active_students')
-        .select('studentid,name,fathername,class_id,classes(name)')
-        .eq('studentid', das.trim())
-        .maybeSingle();
+      let { data: profile, error: studentError } = await supabase.rpc('lookup_public_student', {
+        p_das: das.trim(),
+        p_page: 'datesheets',
+      });
+      if (accessMigrationPending(studentError)) {
+        ({ data: profile, error: studentError } = await supabase
+          .from('active_students')
+          .select('studentid,name,fathername,class_id,classes(name)')
+          .eq('studentid', das.trim())
+          .maybeSingle());
+      }
       if (studentError) throw studentError;
       if (!profile) throw new Error('No active student was found with this DAS number.');
       const { data: active, error: batchError } = await supabase

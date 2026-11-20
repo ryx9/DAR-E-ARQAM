@@ -42,13 +42,14 @@ export default function ProfilesPage() {
 
   // Edit Modal State
   const [editingProfile, setEditingProfile] = useState(null)
-  const [editForm, setEditForm] = useState({ name: "", mobilenumber: "", role: "", selectedClasses: [] })
+  const [editForm, setEditForm] = useState({ name: "", mobilenumber: "", role: "", selectedClasses: [], admin_fee_access: true, admin_student_access: true })
   const [saveLoading, setSaveLoading] = useState(false)
   const [modalLoading, setModalLoading] = useState(false)
   const [newPassword, setNewPassword] = useState("")
   const [confirmPassword, setConfirmPassword] = useState("")
   const [showNewPassword, setShowNewPassword] = useState(false)
   const [passwordLoading, setPasswordLoading] = useState(false)
+  const accessAvailable = typeof allProfiles.find(profile => profile.id === editingProfile)?.admin_fee_access === 'boolean'
 
   const roles = ["teacher", "admin", "superadmin"]
 
@@ -143,6 +144,8 @@ export default function ProfilesPage() {
       name: profile.name || "", 
       mobilenumber: profile.mobilenumber || "", 
       role: profile.role || "teacher",
+      admin_fee_access: profile.admin_fee_access !== false,
+      admin_student_access: profile.admin_student_access !== false,
       selectedClasses: []
     })
     
@@ -217,7 +220,13 @@ export default function ProfilesPage() {
       // 1. Update the base profile data
       const { error: profileError } = await supabase
         .from("profiles")
-        .update({ name: editForm.name, mobilenumber: editForm.mobilenumber, role: editForm.role })
+        .update({
+          name: editForm.name, mobilenumber: editForm.mobilenumber, role: editForm.role,
+          ...(editForm.role === 'admin' && accessAvailable && {
+            admin_fee_access: editForm.admin_fee_access,
+            admin_student_access: editForm.admin_student_access,
+          }),
+        })
         .eq("id", editingProfile)
 
       if (profileError) throw profileError
@@ -262,7 +271,11 @@ export default function ProfilesPage() {
         ...p, 
         name: editForm.name, 
         mobilenumber: editForm.mobilenumber, 
-        role: editForm.role 
+        role: editForm.role,
+        ...(editForm.role === 'admin' && accessAvailable && {
+          admin_fee_access: editForm.admin_fee_access,
+          admin_student_access: editForm.admin_student_access,
+        }),
       } : p))
       
       toast({ title: "Profile and classes updated successfully ✨" })
@@ -662,6 +675,21 @@ export default function ProfilesPage() {
                       </select>
                     </div>
 
+                    {editForm.role === 'admin' && (
+                      <fieldset className="space-y-3 rounded-lg border p-3" disabled={!accessAvailable}>
+                        <legend className="px-1 text-sm font-semibold">Admin data access</legend>
+                        <label className="flex items-start gap-2 text-sm">
+                          <input type="checkbox" checked={editForm.admin_student_access} onChange={e => setEditForm(prev => ({ ...prev, admin_student_access: e.target.checked }))} />
+                          <span>Student records <small className="block text-gray-500 dark:text-slate-400">Student lists, records, and inquiries.</small></span>
+                        </label>
+                        <label className="flex items-start gap-2 text-sm">
+                          <input type="checkbox" checked={editForm.admin_fee_access} onChange={e => setEditForm(prev => ({ ...prev, admin_fee_access: e.target.checked }))} />
+                          <span>Fees <small className="block text-gray-500 dark:text-slate-400">Invoices, payments, receipts, and fee reports.</small></span>
+                        </label>
+                        <p className="text-xs text-gray-500 dark:text-slate-400">Fee pages and admissions use both types of data and require both switches.</p>
+                        {!accessAvailable && <p className="text-xs text-amber-700 dark:text-amber-300">Admin data access is pending database activation.</p>}
+                      </fieldset>
+                    )}
                     {/* Classes Selection */}
                     <AnimatePresence>
                       {editForm.role === 'teacher' && (
