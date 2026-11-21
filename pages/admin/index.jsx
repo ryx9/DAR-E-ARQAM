@@ -13,6 +13,7 @@ import {
   HelpCircle,
   AlertCircle,
   CalendarDays,
+  LayoutGrid,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useToast } from '../../hooks/use-toast';
@@ -247,8 +248,13 @@ export default function AdminDashboard() {
           </motion.div>
         )}
 
-        <section aria-label="School tools">
-          <h2 className="mb-3 text-base font-bold text-foreground">School tools</h2>
+        <section aria-label="School tools" className="space-y-4">
+          <div className="flex items-center gap-2.5 border-b border-slate-200/80 pb-3 dark:border-white/10">
+            <LayoutGrid className="w-5 h-5 text-blue-600 dark:text-blue-400" />
+            <h2 className="text-xl font-extrabold tracking-tight text-slate-900 dark:text-white">
+              School Tools
+            </h2>
+          </div>
           <SchoolTools exclude={['/admin']} />
         </section>
       </main>

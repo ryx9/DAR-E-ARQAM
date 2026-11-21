@@ -18,6 +18,7 @@ import {
   ArrowRight,
   Layers,
   CalendarDays,
+  LayoutGrid,
 } from 'lucide-react';
 import {
   Dialog,
@@ -280,12 +281,15 @@ export default function Dashboard() {
           )}
         </div>
 
-        <details className="rounded-xl border bg-card p-4">
-          <summary className="cursor-pointer font-semibold text-foreground">School tools</summary>
-          <div className="mt-4">
-            <SchoolTools exclude={['/dashboard', '/timetable']} />
+        <section aria-label="School tools" className="space-y-4">
+          <div className="flex items-center gap-2.5 border-b border-slate-200/80 pb-3 dark:border-white/10">
+            <LayoutGrid className="w-5 h-5 text-blue-600 dark:text-blue-400" />
+            <h2 className="text-xl font-extrabold tracking-tight text-slate-900 dark:text-white">
+              School Tools
+            </h2>
           </div>
-        </details>
+          <SchoolTools exclude={['/dashboard', '/timetable']} />
+        </section>
 
         {/* PREMIUM CARD GRID */}
         <motion.div layout className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
