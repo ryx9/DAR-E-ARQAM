@@ -17,6 +17,7 @@ import {
   ShieldAlert,
   Sparkles,
   UserCheck,
+  UserRoundCheck,
   Users,
   Wallet,
   type LucideIcon,
@@ -35,6 +36,7 @@ const feeReports = { href: '/admin/report', label: 'Fee reports', icon: BarChart
 const receipts = { href: '/admin/receipts', label: 'Fee receipts', icon: Wallet, hue: 142 };
 const students = { href: '/admin/crud', label: 'Manage students', icon: Users, hue: 239 };
 const adminHome = { href: '/admin', label: 'Admin overview', icon: LayoutGrid, hue: 217 };
+const leaveDesk = { href: '/leaves', label: 'Leave desk', icon: UserRoundCheck, hue: 32 };
 
 const academics: Section = {
   title: 'Academics',
@@ -45,6 +47,7 @@ const academics: Section = {
     { href: '/marks', label: 'Tests and marks', icon: ScrollText, hue: 160 },
     { href: '/reports', label: 'Academic reports', icon: BarChart2, hue: 239 },
     { href: '/attendance-record/report', label: 'Attendance', icon: UserCheck, hue: 173 },
+    leaveDesk,
     { href: '/syllabus', label: 'Syllabus', icon: BookOpenCheck, hue: 262 },
     { href: '/activities', label: 'Activities', icon: Sparkles, hue: 292 },
   ],
@@ -197,6 +200,7 @@ export function drawerSchoolNavigation(access: SchoolAccess | null): Section[] {
         '/dashboard',
         '/timetable',
         '/attendance-record/report',
+        '/leaves',
         '/syllabus',
         '/marks',
         '/admin/datesheet-builder',
