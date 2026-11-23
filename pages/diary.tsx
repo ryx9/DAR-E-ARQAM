@@ -1,6 +1,7 @@
 "use client";
 import { useState, useEffect } from 'react';
 import { supabase } from '../utils/supabaseClient';
+import { cleanMessageText, messageDate, SCHOOL_NAME } from '../utils/parentMessages';
 import { canAccessClass, getClassAccess } from '../utils/classAccess';
 import Navbar from '../components/Navbar';
 import Groq from 'groq-sdk';
@@ -35,52 +36,12 @@ const groq = new Groq({
 
 // 1. UPDATED FORMATTER PROMPT (WHATSAPP STYLE + SCRIPT LOCK)
 const generateFormatPrompt = (className: string, date: string) => `
-You are a Text Layout Engine. You are NOT a translator.
-Your ONLY function is to structure raw text into a WhatsApp-style list format with emojis.
+Format the input as a concise, professional class diary for parents. Preserve the original script (English, Urdu or Roman Urdu), subjects, tasks, page numbers and deadlines. Do not translate or invent details. Use no emojis or decorative separators.
+Start with:
+*Class diary*
+Class: ${className} · ${messageDate(date)}
 
-### CRITICAL SECURITY PROTOCOL: SCRIPT PRESERVATION
-You must strictly adhere to the "Input Script = Output Script" rule.
-1. If input is **English** -> Output MUST remain **English**.
-2. If input is **Urdu (Nastaliq)** -> Output MUST remain **Urdu**.
-3. If input is **Roman Urdu** (e.g., "kal ana") -> Output MUST remain **Roman Urdu**.
-
-### 🚫 STRICT PROHIBITIONS
-- DO NOT translate. (Example: "Chutti" must NOT become "Holiday").
-- DO NOT transliterate. (Example: "Computer" must NOT become "کمپیوٹر").
-- DO NOT fix grammar if it risks changing the language.
-
-### EXPECTED FORMATTING (WhatsApp Style)
-- Use **asterisks** (*) for headers to make them bold.
-- Use **underscores** (_) for task details to make them italic/distinct.
-- Start with: "📅 *${date}* | 🏫 *${className}*"
-
-### EXAMPLES (Follow this pattern exactly)
-
-Input: "maths pg 5 learn. urdu nazam read"
-Output:
-📅 *${date}* | 🏫 *${className}*
-
-*📚 Maths:*
-_Do page 5 learn._
-
-*📚 Urdu:*
-_Nazam read._
-
-Input: "kal chutti hai because of rain"
-Output:
-📅 *${date}* | 🏫 *${className}*
-
-*📝 Notice:*
-_Kal chutti hai because of rain._
-
-Input: "اسلامیات کا سبق نمبر 1 یاد کریں"
-Output:
-📅 *${date}* | 🏫 *${className}*
-
-*📚 اسلامیات:*
-_سبق نمبر 1 یاد کریں۔_
-
-PROCESS THE TEXT BELOW AND RETURN ONLY THE FORMATTED STRING:
+Use one short line per subject, such as "Maths: Read page 5." Keep any class notices separate. Return only the diary text.
 `;
 
 // 2. POLICY PROMPT (Guardrail)
@@ -179,7 +140,7 @@ export default function DiaryPage() {
     if (newClassId) {
       const selectedClass = classes.find(c => String(c.id) === newClassId);
       if (selectedClass) {
-        setDiary(`📅 *${date}* | 🏫 *${selectedClass.name}*\n\n`);
+        setDiary(`*Class diary*\nClass: ${selectedClass.name} · ${messageDate(date)}\n\n`);
       }
     } else {
       setDiary('');
@@ -206,7 +167,7 @@ export default function DiaryPage() {
       });
 
       const formattedText = completion.choices[0]?.message?.content;
-      if (formattedText) setDiary(formattedText);
+      if (formattedText) setDiary(cleanMessageText(formattedText));
       toast({ title: "✨ Formatted", description: "WhatsApp style applied (Script Preserved).", className: "bg-purple-600 text-white border-none" });
     } catch (error) {
       console.error("AI Error", error);
@@ -235,7 +196,8 @@ export default function DiaryPage() {
   };
 
   const addDiary = async () => {
-    if (!classId || !diary || !date) {
+    const cleaned = cleanMessageText(diary);
+    if (!classId || !cleaned || !date) {
       toast({ variant: 'destructive', title: 'Required', description: 'Please fill all fields' });
       return;
     }
@@ -247,7 +209,7 @@ export default function DiaryPage() {
     const selectedClass = classes.find(c => String(c.id) === classId);
 
     // Local Validation - Relaxed slightly to account for formatting chars
-    if (selectedClass && !diary.includes(selectedClass.name)) {
+    if (selectedClass && !cleaned.includes(selectedClass.name)) {
       toast({ variant: 'destructive', title: 'Format Error', description: `Text must contain "${selectedClass.name}". Use AI Format to fix.` });
       return;
     }
@@ -255,7 +217,7 @@ export default function DiaryPage() {
     setSubmitting(true);
 
     // Policy Check
-    const policy = await checkPolicy(diary);
+    const policy = await checkPolicy(cleaned);
     if (!policy.allowed) {
       setSubmitting(false);
       toast({ variant: 'destructive', title: 'Policy Violation', description: policy.reason });
@@ -263,11 +225,12 @@ export default function DiaryPage() {
     }
 
     const isoDate = new Date(date).toISOString();
+    const diaryText = cleaned.endsWith(SCHOOL_NAME) ? cleaned : `${cleaned}\n\n${SCHOOL_NAME}`;
 
     // Insert Diary
     const { data: inserted, error } = await supabase
       .from('diary')
-      .insert([{ class_id: Number(classId), diary, date: isoDate }])
+      .insert([{ class_id: Number(classId), diary: diaryText, date: isoDate }])
       .select();
 
     if (error || !inserted?.length) {
@@ -291,12 +254,12 @@ export default function DiaryPage() {
         student_id: s.studentid,
         class_id: classId,
         number: s.mobilenumber,
-        text: diary,
+        text: diaryText,
         type: 'notice',
         sent: false,
         created_at: isoDate,
         notice_batch_id: batch,
-        notice_template: diary,
+        notice_template: diaryText,
         notice_queued_at: queuedAt,
         notice_scheduled_for: null,
       }));

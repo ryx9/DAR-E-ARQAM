@@ -20,6 +20,7 @@ import {
 } from "lucide-react";
 
 import { supabase } from "../../utils/supabaseClient";
+import { parentMessage, messageDate } from '../../utils/parentMessages';
 import { canAccessClass, getClassAccess } from "../../utils/classAccess";
 import Navbar from "../../components/Navbar";
 import Breadcrumbs from "../../components/Breadcrumbs";
@@ -394,7 +395,11 @@ export default function AttendanceReportPage() {
         student_id: s.studentid,
         class_id: selectedClassId,
         number: s.mobilenumber,
-        text: `Dear Parent,\n\nAttendance Report for *${s.name}* (${format(new Date(startDate), "dd-MMM")} to ${format(new Date(endDate), "dd-MMM")}):\n\n✅ Present: ${s.present}\n❌ Absent: ${s.absent}\n📊 Percentage: ${s.percentageStr}%\n\nRegular attendance ensures better learning.\n\nRegards,\nDAR-E-ARQAM SCHOOL`,
+        text: parentMessage('Attendance summary', [
+          `Student: ${s.name}`,
+          `Period: ${messageDate(startDate)} to ${messageDate(endDate)}`,
+          `Present: ${s.present} · Absent: ${s.absent} · Attendance: ${s.percentageStr}%`,
+        ], 'Please contact the school office if any entry needs correction.'),
       }));
 
     if (messages.length === 0) {

@@ -3,6 +3,7 @@
 import { useState, useEffect, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { supabase } from '../../../utils/supabaseClient';
+import { parentMessage, feeLines, rupees, messageDate } from '../../../utils/parentMessages';
 import Navbar from '../../../components/Navbar';
 import Loader from '../../../components/Loader';
 import { Button } from '../../../components/ui/button';
@@ -295,32 +296,22 @@ export default function PayInvoiceContent() {
 
       // GENERATE & INSERT WHATSAPP MESSAGE (Conditional)
       if (sendMessageToParent) {
-        let receiptText = `*FEE PAYMENT RECEIPT*\n`;
-        receiptText += `━━━━━━━━━━━━━━━━━━━━\n\n`;
-        receiptText += `👤 *Student:* ${student?.name}\n`;
-        receiptText += `🆔 *DAS NUMBER:* ${student?.studentid}\n`;
-        receiptText += `🏫 *Class:* ${student?.classes?.name || 'N/A'}\n`;
-        receiptText += `📄 *Invoice #:* ${invoiceId}\n\n`;
-
-        receiptText += `*FEE BREAKDOWN (PAID)*\n`;
-        receiptText += `-------------------------\n`;
-
-        calculatedDetails.forEach(item => {
-          if (item.payingNow > 0) {
-            receiptText += `🔹 ${item.fee_type}: *${item.payingNow.toLocaleString()} PKR*\n`;
-          }
-        });
-
-        receiptText += `-------------------------\n`;
-        receiptText += `✅ *Total Received:* ${totalPayingNow.toLocaleString()} PKR\n`;
-        receiptText += `💳 *Method:* ${paymentMethod.toUpperCase()}\n\n`;
-
-        const newBalance = globalBalance - totalPayingNow;
-        receiptText += ` *Remaining Balance:* ${newBalance.toLocaleString()} PKR\n\n`;
-        receiptText += `Received by: ${cashierName}\n\n`;
-        receiptText += `_ACCOUNTS OFFICE_ \n DAR-E-ARQAM SCHOOL`;
-
-        const parentPhone = student?.mobilenumber || '00000000000';
+        const receiptText = parentMessage(
+          'Fee payment receipt',
+          [
+            `Student: ${student?.name} · DAS ${student?.studentid}`,
+            student?.classes?.name && `Class: ${student.classes.name}`,
+            `Invoice #${invoiceId}`,
+            `Payment date: ${messageDate(paidAt)}`,
+            ...feeLines(calculatedDetails.map(item => [item.fee_type, item.payingNow])),
+            `*Paid: ${rupees(totalPayingNow)}*`,
+            `Payment method: ${paymentMethod.toUpperCase()}`,
+            `Remaining balance: ${rupees(newBalance)}`,
+            `Received by: ${cashierName}`,
+          ],
+          'Please retain this receipt for your records.',
+          'Accounts Office'
+        );
 
         const { error: msgError } = await supabase.from('messages').insert({
           student_id: student?.studentid,

@@ -3,6 +3,7 @@
 import { useState, useEffect, Suspense } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import { supabase } from "../../utils/supabaseClient"
+import { parentMessage, feeLines, rupees, messageDate } from '../../utils/parentMessages';
 import { exportToCSV, exportToPDF } from "../../utils/exportUtils"
 import Navbar from "../../components/Navbar"
 import Loader from "../../components/Loader"
@@ -314,15 +315,17 @@ function DefaulterListContent() {
       const messagesPayload = []
 
       for (const student of selectedDefaulters) {
-        let finalMessage = `Subject: Notice of Outstanding Fee Dues\n\nDear Parent/Guardian of ${student.name},\n\nWe hope this message finds you well.\n\nThis is a formal reminder regarding the outstanding account balance for ${student.name}. Below is the summary of the pending dues:\n\n`
-        
-        if (student.currentTuition > 0) finalMessage += `- Current Tuition: Rs. ${student.currentTuition}\n`
-        if (student.prevTuition > 0) finalMessage += `- Previous Tuition: Rs. ${student.prevTuition}\n`
-        if (student.annualCharges > 0) finalMessage += `- Annual Charges: Rs. ${student.annualCharges}\n`
-        if (student.stationeryCharges > 0) finalMessage += `- Stationery Charges: Rs. ${student.stationeryCharges}\n`
-        if (student.arrears > 0) finalMessage += `- Arrears / Other: Rs. ${student.arrears}\n`
-        
-        finalMessage += `\nTotal Amount Payable: Rs. ${student.totalPending}\n\nWe kindly request you to clear these dues at your earliest convenience to ensure uninterrupted access to school services. If you have already made this payment, please disregard this notice.\n\nSincerely,\nAdministration`
+        const finalMessage = parentMessage('Outstanding fee reminder', [
+          `Student: ${student.name} · ${student.className} · DAS ${student.studentid}`,
+          `Invoice period: ${messageDate(startDate)} to ${messageDate(endDate)}`,
+          ...feeLines([
+            ['Current tuition', student.currentTuition], ['Previous tuition', student.prevTuition],
+            ['Annual charges', student.annualCharges], ['Stationery', student.stationeryCharges],
+            ['Other arrears', student.arrears],
+          ]),
+          `*Total outstanding: ${rupees(student.totalPending)}*`,
+        ], 'Please settle this balance with Accounts. If you have already paid, please share the receipt so we can update our records.', 'Accounts Office')
+
 
         messagesPayload.push({
           student_id: student.studentid,

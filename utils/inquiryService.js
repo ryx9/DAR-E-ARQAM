@@ -1,4 +1,5 @@
 import { supabase } from './supabaseClient';
+import { cleanMessageText } from './parentMessages';
 
 export const fetchAllInquiries = async () => {
   const { data, error } = await supabase
@@ -47,7 +48,9 @@ export const incrementFollowUpCount = async (id, currentCount) => {
 };
 
 export const logMessage = async (number, text) => {
-  const { error } = await supabase.from('messages').insert([{ number, text }]);
+  const message = cleanMessageText(text);
+  if (!message) throw new Error('Enter a message before queueing.');
+  const { error } = await supabase.from('messages').insert([{ number, text: message }]);
 
   if (error) throw error;
 };

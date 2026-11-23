@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { supabase } from '../utils/supabaseClient';
+import { complaintParentMessage } from '../utils/parentMessages';
 import { accessMigrationPending } from '../utils/adminDataAccess';
 
 export default function StudentRecordsPage() {
@@ -118,7 +119,7 @@ export default function StudentRecordsPage() {
             setComplaints([newComplaint, ...complaints]);
 
             if (studentDetails) {
-                const parentMessage = `*Complaint Received* 📬\n\nDear Parent,\nYour complaint regarding "*${complaintTitle}*" has been successfully lodged. Our team will review it shortly.\n\nThank you.`;
+                const parentMessage = complaintParentMessage(complaintTitle, 'received');
                 await sendMessage(studentDetails.mobilenumber, parentMessage, studentId, studentDetails.class_id);
 
                 const adminMessage = `*New Parent Complaint* ⚠️\n\n*Student:* ${studentDetails.name} (ID: ${studentId})\n*Title:* ${complaintTitle}\n*Details:* ${complaintDetails}`;

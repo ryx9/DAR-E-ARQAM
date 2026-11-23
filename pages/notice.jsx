@@ -13,6 +13,7 @@ import {
 import Groq from 'groq-sdk';
 import { supabase } from '../utils/supabaseClient';
 import { classMessageTeacherCopies } from '../utils/staffNotifications';
+import { cleanMessageText, SCHOOL_NAME } from '../utils/parentMessages';
 import { canAccessClass, getClassAccess } from '../utils/classAccess';
 import {
   formatMessageTime,
@@ -47,8 +48,8 @@ Your goal is to write professional, polite, and clear SMS broadcasts to parents 
 2. **ACTION**: 
    - If the user provides a topic (e.g., "fee reminder"), write a full message from scratch.
    - If the user provides a rough draft, polish and fix grammar.
-3. **TONE**: Formal, respectful, and authoritative yet gentle. Use "Respected Parent" as the salutation.
-4. **FORMAT**: Add 1-2 emojis (like calendar,school,pencil etc) per message and MUST use ** and _ _ for bold and italic very often
+3. **TONE**: Professional, direct, and respectful. Use "Dear Parent/Guardian,".
+4. **FORMAT**: No emojis, decorative separators, or excessive emphasis. Use a short heading and short paragraphs. Keep the next action and deadline clear when applicable.
 
 ### MANDATORY VARIABLES
 You MUST seamlessly integrate these placeholders where they make sense naturally:
@@ -61,8 +62,7 @@ You MUST seamlessly integrate these placeholders where they make sense naturally
 - Do not use "Subject:" lines.
 - Keep it under 400 characters if possible (SMS friendly).
 - Use spacing for readability.
-- Ends with "Regards, 
-Administration".
+- Sign off as "${SCHOOL_NAME}".
 `;
 
 const SCHOOL_POLICY_CONTEXT = `
@@ -227,7 +227,7 @@ export default function ComposeNotice() {
     setError('');
     try {
       const text = await complete(AI_DRAFTER_PROMPT, template);
-      if (text) setTemplate(text.trim());
+      if (text) setTemplate(cleanMessageText(text));
     } catch (e) {
       setError(e.message);
     } finally {
@@ -244,7 +244,7 @@ export default function ComposeNotice() {
     e.preventDefault();
     setError('');
     try {
-      if (!selected.length || !template.trim())
+      if (!selected.length || !cleanMessageText(template))
         throw Error('Choose recipients and write a message.');
       if (missing) throw Error('Remove students without a phone number or update their records.');
       if (unknown.length) throw Error('Replace unsupported placeholders before queueing.');
@@ -265,7 +265,9 @@ export default function ComposeNotice() {
         selected.some(s => !canAccessClass(access, s.class_id))
       )
         throw Error('Your class access changed. Reload before queueing.');
-      const result = JSON.parse(await complete(SCHOOL_POLICY_CONTEXT, template, true));
+      const message = cleanMessageText(template);
+      if (!message) throw Error('Write a message before queueing.');
+      const result = JSON.parse(await complete(SCHOOL_POLICY_CONTEXT, message, true));
       if (result.allowed !== true)
         throw Error(result.reason || 'The notice did not pass the message policy check.');
       const scheduledFor = scheduledTime(),
@@ -276,12 +278,12 @@ export default function ComposeNotice() {
         student_id: student.studentid,
         number: student.mobilenumber,
         class_id: student.class_id,
-        text: personalise(template, student, due),
+        text: cleanMessageText(personalise(message, student, due)),
         type: 'notice',
         sent: false,
         created_at: due,
         notice_batch_id: batch,
-        notice_template: template.trim(),
+        notice_template: message,
         notice_queued_at: queuedAt,
         notice_scheduled_for: scheduledFor,
       }));
@@ -289,7 +291,7 @@ export default function ComposeNotice() {
         throw Error('At least one recipient would receive an empty message.');
       const teacherCopies = await classMessageTeacherCopies(
         payload,
-        template.trim(),
+        message,
         new Map(selected.map(student => [String(student.class_id), student.classes?.name])),
         { due, queuedAt, scheduledFor }
       );
@@ -319,10 +321,12 @@ export default function ComposeNotice() {
         : 'Choose a delivery time';
   const previewText =
     preview && template
-      ? personalise(
-          template,
-          preview,
-          planned && Number.isFinite(planned.valueOf()) ? planned : new Date()
+      ? cleanMessageText(
+          personalise(
+            template,
+            preview,
+            planned && Number.isFinite(planned.valueOf()) ? planned : new Date()
+          )
         )
       : '';
   const selectedClasses = classes.filter(c => classIds.includes(String(c.id)));

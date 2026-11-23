@@ -23,6 +23,7 @@ import {
 } from 'lucide-react';
 
 import { supabase } from '../../utils/supabaseClient';
+import { parentMessage } from '../../utils/parentMessages';
 import { canAccessClass, getClassAccess } from '../../utils/classAccess';
 import Navbar from '../../components/Navbar';
 import Breadcrumbs from '../../components/Breadcrumbs';
@@ -233,7 +234,11 @@ export default function AttendanceRecordPage() {
             student_id: a.studentid,
             class_id: id,
             number: a.student.mobilenumber,
-            text: `*Mr./Mrs. ${a.student.fathername}*,\n\nKindly be informed that your child *${a.student.name}* is absent on *${format(selectedDate, 'dd-MM-yyyy')}*. \n*Best Regards,*\nManagement\nDAR-E-ARQAM SCHOOL`
+            text: parentMessage('Absence notice', [
+              `Student: ${a.student.name}`,
+              `Date: ${format(selectedDate, 'dd MMM yyyy')}`,
+              'Your child was marked absent.',
+            ], 'Please contact the school office if the record needs correction or to let us know the reason for the absence.')
           }));
 
         if (absentMessages.length > 0) {

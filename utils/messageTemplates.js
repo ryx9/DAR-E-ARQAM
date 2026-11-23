@@ -1,38 +1,71 @@
-import { format } from "date-fns";
+import { parentMessage } from './parentMessages';
 
-const SCHOOL_NAME = "Dar-e-Arqam School";
+const syllabus = 'Admission test syllabus: https://darearqam.vercel.app/admission';
+const admissionsContact = 'For questions, call Admissions at 0323-4447292.';
 
-const getFormattedTime = (dateStr) => {
-  if (!dateStr) return "Scheduled Time";
-  return format(new Date(dateStr), "EEEE, MMM do 'at' h:mm a");
-};
+export function admissionInquiryMessage(studentNames) {
+  const names = studentNames.filter(Boolean).join(', ') || 'your child';
+  return parentMessage(
+    'Admission inquiry received',
+    [`Thank you for your inquiry for ${names}.`, syllabus],
+    admissionsContact,
+    'Admissions Office'
+  );
+}
 
-/**
- * @param {'WELCOME'|'TEST_SCHEDULED'|'TEST_CLEAR'|'ADMISSION'|'FOLLOW_UP'} type
- * @param {Object} inquiry
- * @param {Object} extraData
- */
-export const generateMessageTemplate = (type, inquiry, extraData = {}) => {
-  const parent = inquiry.fathername;
+export function generateMessageTemplate(type, inquiry, extraData = {}) {
   const student = inquiry.name;
-
   switch (type) {
     case 'WELCOME':
-      return `Respected *${parent}*,\n\nThank you for visiting *${SCHOOL_NAME}*. We have successfully recorded the admission inquiry for *${student}*.\n\nDo you have any specific questions regarding the curriculum or facilities? \n Admission test syllabus can be found on this link: https://darearqam.vercel.app/admission`;
-
-    case 'TEST_SCHEDULED':
-      return `Respected Parent,\n\nThe admission test for *${student}* has been scheduled.\n\n📅 *When:* ${getFormattedTime(extraData.date)}\n\nPlease ensure punctual arrival at the campus. Admission test syllabus can be found on this link: https://darearqam.vercel.app/admission`;
-
+      return admissionInquiryMessage([student]);
+    case 'TEST_SCHEDULED': {
+      const date = extraData.date || '';
+      const scheduledAt = new Date(
+        /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(?::\d{2})?$/.test(date) ? date + '+05:00' : date
+      );
+      const time =
+        extraData.date && Number.isFinite(scheduledAt.valueOf())
+          ? new Intl.DateTimeFormat('en-GB', {
+              dateStyle: 'medium',
+              timeStyle: 'short',
+              timeZone: 'Asia/Karachi',
+            }).format(scheduledAt)
+          : '';
+      return parentMessage(
+        'Admission test',
+        [
+          `Student: ${student}`,
+          time
+            ? `Date and time: ${time} PKT`
+            : 'Please contact Admissions to confirm the date and time.',
+          syllabus,
+        ],
+        time ? 'Please arrive at the campus on time for the test.' : '',
+        'Admissions Office'
+      );
+    }
     case 'TEST_CLEAR':
-      return `🎉 *Congratulations!*\n\nWe are pleased to inform you that *${student}* has successfully cleared the admission test at *${SCHOOL_NAME}*.\n\nPlease visit the administration office for fee submission and final formalities.`;
-
+      return parentMessage(
+        'Admission test result',
+        `${student} passed the admission test.`,
+        'Please visit the Admissions Office to complete enrolment and pay the fees.',
+        'Admissions Office'
+      );
     case 'ADMISSION':
-      return `✅ *Admission Confirmed*\n\nThe admission process for *${student}* at *${SCHOOL_NAME}* is now complete.\n\nWelcome to the family! 🎓`;
-
+      return parentMessage(
+        'Admission confirmed',
+        `Enrolment for ${student} is complete.`,
+        'Please contact Admissions for joining instructions if needed.',
+        'Admissions Office'
+      );
     case 'FOLLOW_UP':
-      return `Respected Parent,\n\nYou recently visited *${SCHOOL_NAME}* regarding the admission application for *${student}*.\n\nWould you like to schedule the *Admission Test* now? Please let us know so we can reserve a slot for you.`;
-
+      return parentMessage(
+        'Admission follow-up',
+        `We are following up on the admission inquiry for ${student}.`,
+        'Please reply if you would like to schedule the admission test.',
+        'Admissions Office'
+      );
     default:
-      return "";
+      return '';
   }
-};
+}

@@ -21,6 +21,8 @@ import { insertInquiry } from "../../../../utils/inquiryService";
 import { printFeeQuote } from "../../../../utils/printUtils";
 import { useToast } from "../../../../hooks/use-toast";
 import { supabase } from "../../../../utils/supabaseClient";
+import { admissionInquiryMessage } from '../../../../utils/messageTemplates';
+import { cleanMessageText } from '../../../../utils/parentMessages';
 
 // ─── Default fee values ───────────────────────────────────────────────────────
 const DEFAULT_FEE = { admission: 8000, monthly: 5000, annual: 5000, stationery: 5000 };
@@ -39,23 +41,6 @@ function blankStudent(shared = {}) {
     session: shared.session || "Fall",
     year: shared.year || getPakistanDate().getFullYear(),
   };
-}
-
-function buildDefaultMessage(fathername, studentNames) {
-  const nameList = studentNames.filter(Boolean).join(" & ");
-  return `*Mr./Mrs. ${fathername},*
-
-We have received the admission inquiry for ${nameList} at DAR-E-ARQAM SCHOOL. Thank you for visiting *DAR-E-ARQAM SCHOOL*.
-
-If you have any queries feel free to contact on 0323-4447292
-
-For Admission Test Syllabus, please visit:
-🌐 darearqam.vercel.app/admission
-
-BEST REGARDS,
-
-ADMISSION OFFICE
-DAR-E-ARQAM SCHOOL`;
 }
 
 export default function AddInquiryPage() {
@@ -81,30 +66,18 @@ export default function AddInquiryPage() {
 
   const getPreviewMessage = () => {
     if (messageCustomised) return messageText;
-    const names = siblings.map(s => s.name).filter(Boolean);
-    return buildDefaultMessage(
-      sharedForm.fathername || "Parent",
-      names.length ? names : ["your child"]
-    );
+    return admissionInquiryMessage(siblings.map(s => s.name));
   };
 
   const handleOpenMessageEditor = () => {
     if (!messageCustomised) {
-      const names = siblings.map(s => s.name).filter(Boolean);
-      setMessageText(buildDefaultMessage(
-        sharedForm.fathername || "Parent",
-        names.length ? names : ["your child"]
-      ));
+      setMessageText(admissionInquiryMessage(siblings.map(s => s.name)));
     }
     setEditingMessage(true);
   };
 
   const handleResetMessage = () => {
-    const names = siblings.map(s => s.name).filter(Boolean);
-    setMessageText(buildDefaultMessage(
-      sharedForm.fathername || "Parent",
-      names.length ? names : ["your child"]
-    ));
+    setMessageText(admissionInquiryMessage(siblings.map(s => s.name)));
     setMessageCustomised(false);
     setEditingMessage(false);
   };
@@ -164,12 +137,8 @@ export default function AddInquiryPage() {
       })));
 
       // ── Insert ONE message per family ──
-      const finalMessage = messageCustomised
-        ? messageText
-        : buildDefaultMessage(
-            sharedForm.fathername,
-            siblings.map(s => s.name).filter(Boolean)
-          );
+      const defaultMessage = admissionInquiryMessage(siblings.map(s => s.name));
+      const finalMessage = messageCustomised ? cleanMessageText(messageText) || defaultMessage : defaultMessage;
 
       const { error: msgError } = await supabase
         .from("messages")

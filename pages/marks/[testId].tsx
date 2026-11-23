@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useRouter } from 'next/router'
 import { supabase } from '../../utils/supabaseClient'
+import { parentMessage, messageDate } from '../../utils/parentMessages';
 import { canAccessClass, getClassAccess } from '../../utils/classAccess'
 import { queueSubjectTeacherAlerts } from '../../utils/staffNotifications'
 import { Button } from '../../components/ui/button'
@@ -174,7 +175,6 @@ export default function MarksEntryPage() {
       let parentMessageCount = 0
       let parentQueueError: string | undefined
       if (sendToParents) {
-        const displayDate = testDate ? new Date(testDate).toLocaleDateString('en-GB') : ''
         const messagesPayload = students
           .filter((s) => !excluded.has(s.studentid) && s.mobilenumber?.trim())
           .map((s) => {
@@ -184,7 +184,12 @@ export default function MarksEntryPage() {
               student_id: s.studentid,
               class_id: test?.class_id || null,
               number: s.mobilenumber || null,
-              text: `Respected Parents,\n\n${s.name}'s marks in ${testName} held on ${displayDate} are ${obtained}/${parsedTotal} (Percentage: ${percentage}%).\n\nRegards,\nManagement\nDAR-E-ARQAM SCHOOL`,
+              text: parentMessage('Test result', [
+                `Student: ${s.name}`,
+                `Test: ${testName}`,
+                testDate ? `Date: ${messageDate(testDate)}` : '',
+                `Marks: ${obtained}/${parsedTotal} (${percentage}%)`,
+              ]),
               created_at: new Date().toISOString(),
               sent: false
             }

@@ -1,6 +1,7 @@
 'use client';
 import { useEffect, useState, useMemo, useTransition } from 'react';
 import { supabase } from '../../utils/supabaseClient';
+import { complaintParentMessage } from '../../utils/parentMessages';
 import { complaintTeacherMessage, hasNoBlockedStaff, staffName } from '../../utils/complaintStaff';
 import Navbar from '../../components/Navbar';
 
@@ -182,9 +183,9 @@ export default function ComplaintsAdmin() {
 
       // --- Send Messages on Creation ---
       const assignedToUser = users.find(u => u.id === assignedToUserId);
-      const studentMsgReceived = `*Complaint Received* 📬\n\nDear Parent,\nYour complaint regarding "*${title}*" has been successfully lodged. We will look into it shortly.\n\nThank you,\nCampus Administration`;
+      const studentMsgReceived = complaintParentMessage(title, 'received');
       await sendMessage(mobilenumber, studentMsgReceived, selectedStudent, class_id);
-      const studentMsgAssigned = `*Complaint Update* 🧑‍🏫\n\nDear Parent,\nYour complaint "*${title}*" has been assigned to a concerned staff member for review and resolution.`;
+      const studentMsgAssigned = complaintParentMessage(title, 'assigned');
       await sendMessage(mobilenumber, studentMsgAssigned, selectedStudent, class_id);
       const adminMsg = `*New Complaint Alert* ⚠️\n\n*Student:* ${studentName}\n*Title:* ${title}\n*Details:* ${text}\n*Against:* ${staffName(
         users.find(u => u.id === againstUserId),
@@ -260,7 +261,7 @@ export default function ComplaintsAdmin() {
         );
         const adminReassignMsg = `*Complaint Re-Assigned* 🔁\n\n*Title:* ${editingComplaint.title}\n*Student:* ${student.name}\n*From:* ${oldTeacher}\n*To:* ${newTeacher}`;
         await sendMessage('923085333392', adminReassignMsg, student.student_id, student.class_id);
-        const studentReassignMsg = `*Complaint Update* 🧑‍🏫\n\nDear Parent,\nThere is an update on your complaint "*${editingComplaint.title}*". It has been forwarded to another staff member for further action.`;
+        const studentReassignMsg = complaintParentMessage(editingComplaint.title, 'reassigned');
         await sendMessage(
           student.mobilenumber,
           studentReassignMsg,
@@ -297,7 +298,11 @@ export default function ComplaintsAdmin() {
         originalComplaint.status !== newStatus &&
         (newStatus === 'Resolved' || newStatus === 'Closed')
       ) {
-        const studentCloseMsg = `*Complaint ${newStatus}* ✅\n\nDear Parent,\nYour complaint "*${editingComplaint.title}*" has been marked as *${newStatus}*.\n\n*Resolution Notes:*\n${resolutionNotes || 'No additional notes.'}`;
+        const studentCloseMsg = complaintParentMessage(
+          editingComplaint.title,
+          newStatus,
+          resolutionNotes || ''
+        );
         await sendMessage(
           student.mobilenumber,
           studentCloseMsg,

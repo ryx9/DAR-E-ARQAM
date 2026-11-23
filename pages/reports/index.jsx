@@ -2,6 +2,7 @@
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import { useRouter } from 'next/router';
 import { supabase } from '../../utils/supabaseClient';
+import { parentMessage, messageDate } from '../../utils/parentMessages';
 import { canAccessClass, getClassAccess } from '../../utils/classAccess';
 import Navbar from '../../components/Navbar';
 import AssessmentNav from '../../components/AssessmentNav';
@@ -2186,11 +2187,19 @@ function StudentTab({ data, classId, selectedId, setSelectedId }) {
       const sub = rows
         .map(r => {
           const pc = r.t > 0 ? (r.o / r.t) * 100 : 0;
-          return `- *${r.name}:* ${r.o}/${r.t} (${pc.toFixed(1)}%, ${gradeFromPercent(pc)})`;
+          return `${r.name}: ${r.o}/${r.t} (${pc.toFixed(1)}%, ${gradeFromPercent(pc)})`;
         })
         .join('\n');
       const a = p.attendance;
-      const body = `📊 *Report Card*\n\n *Name:* ${p.name}\n *Father:* ${p.fathername}\n *Class:* ${data.className}\n${sub}\n\n *Attendance:* ${f1(a.percent)}% (P:${a.present}/T:${a.total})\n\n *Total:* ${p.totalObtained}/${p.totalMax}\n *Percentage:* ${p.overallPct.toFixed(2)}%\n *Grade:* ${p.overallGrade}\n *Rank:* ${p.rank}/${data.classStats.rankedStudents.length}\n\n *Regards,* \n *Management* \n DAR-E-ARQAM`;
+      const body = parentMessage('Report card', [
+        `Student: ${p.name} · ${data.className}`,
+        `DAS: ${p.studentid}`,
+        `Assessment period: ${messageDate(data.range.start)} to ${messageDate(data.range.end)}`,
+        sub,
+        `Total marks: ${p.totalObtained}/${p.totalMax} (${p.overallPct.toFixed(2)}%)`,
+        `Overall grade: ${p.overallGrade} · Rank: ${p.rank}/${data.classStats.rankedStudents.length}`,
+        `Attendance: ${f1(a.percent)}% (${a.present}/${a.total} days present)`,
+      ]);
       return {
         number: p.mobilenumber,
         text: body,

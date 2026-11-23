@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useState, useMemo, useTransition } from "react";
 import { supabase } from "../utils/supabaseClient";
+import { complaintParentMessage } from '../utils/parentMessages';
 import { hasNoBlockedStaff, staffName } from "../utils/complaintStaff";
 import Navbar from "../components/Navbar";
 
@@ -132,11 +133,7 @@ export default function MyComplaints() {
       ) {
         const student = editingComplaint.students;
         if (student && student.mobilenumber) {
-          const studentCloseMsg = `*Complaint ${newStatus}* ✅\n\nDear Parent,\nYour complaint "*${
-            editingComplaint.title
-          }*" has been marked as *${newStatus}*.\n\n*Resolution Notes:*\n${
-            resolutionNotes || "No additional notes."
-          }`;
+          const studentCloseMsg = complaintParentMessage(editingComplaint.title, newStatus, resolutionNotes || '');
           await sendMessage(
             student.mobilenumber,
             studentCloseMsg,

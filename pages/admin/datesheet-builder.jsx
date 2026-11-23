@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import Navbar from '../../components/Navbar';
 import AssessmentNav from '../../components/AssessmentNav';
 import { supabase } from '../../utils/supabaseClient';
+import { parentMessage, messageDate, rupees } from '../../utils/parentMessages';
 import { Button } from '../../components/ui/button';
 import { Input } from '../../components/ui/input';
 import {
@@ -417,7 +418,7 @@ export default function DatesheetBuilder() {
     try {
       if (!validRows.length || rows.length !== validRows.length)
         throw new Error('Complete the exam schedule before preparing notices.');
-      const schedule = validRows.map(row => `${row.subject} — ${row.date}`).join('\n');
+      const schedule = validRows.map(row => `${row.subject} — ${messageDate(row.date)}`).join('\n');
       const payload = recipients
         .filter(student => student.mobilenumber)
         .map(student => ({
@@ -425,7 +426,18 @@ export default function DatesheetBuilder() {
           class_id: student.class_id,
           number: student.mobilenumber,
           sent: false,
-          text: `Dear Parent/Guardian,\n\n*EXAMINATION DATESHEET*\n\nStudent: ${student.name}\nClass: ${student.className}\nExamination: ${title}\n\n*Exam schedule*\n${schedule}\n\nPlease ensure the student arrives on time with the required stationery.\n\n*Fee Position:*\nPending balance for the selected invoice period: Rs. ${Number(student.balance).toLocaleString('en-PK')}\n\nFor any examination or account-related query, please contact the school office.\n\nRegards,\n*DAR-E-ARQAM School*`,
+          text: parentMessage(
+            'Examination datesheet',
+            [
+              `Student: ${student.name} · ${student.className}`,
+              `Examination: ${title}`,
+              '',
+              '*Exam schedule*',
+              schedule,
+              `Outstanding fees for the selected period: ${rupees(student.balance)}`,
+            ],
+            'Please arrive on time with the required stationery. For exam or fee queries, contact the school office.'
+          ),
         }));
       if (!payload.length) throw new Error('None of the selected students has a mobile number.');
       const { error } = await supabase.from('messages').insert(payload);

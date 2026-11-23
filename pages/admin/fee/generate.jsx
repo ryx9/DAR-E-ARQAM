@@ -3,6 +3,7 @@
 import { useState, useEffect, Suspense } from "react"
 import { useRouter } from "next/navigation"
 import { supabase } from "../../../utils/supabaseClient"
+import { parentMessage, feeLines, rupees, messageDate } from '../../../utils/parentMessages';
 import Navbar from "../../../components/Navbar"
 import Loader from "../../../components/Loader"
 import { Button } from "../../../components/ui/button"
@@ -378,13 +379,17 @@ export default function GenerateInvoicesContent() {
 
         // 6. Messaging Integration
         if (sendMessage) {
-          let finalMessage = `*Fee Invoice Alert* \n\nDear *${student.name}*,\nYour fee invoice for *${config.feeLabel}* has been generated.\n\n*Fee Breakdown:*\nTuition Fee: Rs. ${monthlyFee}`;
-          if (annual > 0) finalMessage += `\nAnnual Charges: Rs. ${annual}`;
-          if (stationery > 0) finalMessage += `\nStationery: Rs. ${stationery}`;
-          if (customFee > 0) finalMessage += `\n${customLabel}: Rs. ${customFee}`;
-          if (totalCarryOverAmount > 0) finalMessage += `\nPrevious Pending Dues: Rs. ${totalCarryOverAmount}`;
+          const finalMessage = parentMessage('Fee invoice', [
+            `Student: ${student.name} · DAS ${student.studentid}`,
+            `Invoice #${invData.id} · ${config.feeLabel}`,
+            ...feeLines([
+              ['Tuition', monthlyFee], ['Annual charges', annual], ['Stationery', stationery],
+              [customLabel, customFee], ['Previous balance', totalCarryOverAmount],
+            ]),
+            `*Total due: ${rupees(grandTotal)}*`,
+            `Payment due: ${messageDate(config.dueDate)}`,
+          ], 'Please pay by the due date. Contact Accounts with any questions.', 'Accounts Office')
 
-          finalMessage += `\n\n *Total Due:* Rs. ${grandTotal}\n📅 *Due Date:* ${config.dueDate}\n\nPlease clear the dues before the deadline. Thank you! `;
 
           await supabase.from("messages").insert({
             student_id: student.studentid,
