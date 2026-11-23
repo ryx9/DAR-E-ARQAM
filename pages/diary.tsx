@@ -1,7 +1,7 @@
 "use client";
 import { useState, useEffect } from 'react';
 import { supabase } from '../utils/supabaseClient';
-import { cleanMessageText, messageDate, SCHOOL_NAME } from '../utils/parentMessages';
+import { messageDate, SCHOOL_NAME } from '../utils/parentMessages';
 import { canAccessClass, getClassAccess } from '../utils/classAccess';
 import Navbar from '../components/Navbar';
 import Groq from 'groq-sdk';
@@ -34,14 +34,42 @@ const groq = new Groq({
   dangerouslyAllowBrowser: true
 });
 
-// 1. UPDATED FORMATTER PROMPT (WHATSAPP STYLE + SCRIPT LOCK)
-const generateFormatPrompt = (className: string, date: string) => `
-Format the input as a concise, professional class diary for parents. Preserve the original script (English, Urdu or Roman Urdu), subjects, tasks, page numbers and deadlines. Do not translate or invent details. Use no emojis or decorative separators.
-Start with:
-*Class diary*
-Class: ${className} · ${messageDate(date)}
+const diaryHeader = (className: string, date: string) =>
+  `🏫 *${className}* | 📅 *${messageDate(date)}*`;
 
-Use one short line per subject, such as "Maths: Read page 5." Keep any class notices separate. Return only the diary text.
+// Diary is intentionally more expressive than other parent notices. Do not use
+// cleanMessageText here: it removes the WhatsApp-friendly subject emojis.
+const cleanDiaryText = (value: string) =>
+  String(value || '')
+    .replace(/\r\n?/g, '\n')
+    .split('\n')
+    .map(line => line.trim())
+    .join('\n')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim();
+
+// WhatsApp style + script lock + strict English correction.
+const generateFormatPrompt = (className: string, date: string) => `
+You are the final editor for a school WhatsApp class diary. Return ONLY the finished diary, with no explanation, code fence, greeting or signature.
+
+MANDATORY OUTPUT FORMAT:
+${diaryHeader(className, date)}
+
+*Subject name:* one relevant emoji
+_A concise complete instruction sentence._
+
+Repeat the two-line subject format for every subject. Use a relevant, tasteful emoji for each subject (for example: 📘 Maths, 🔬 Science, 📖 English/Urdu, 🕌 Islamiat, 🎨 Art, 💻 Computer). Keep notices in the same WhatsApp style after the subjects.
+
+STRICT LANGUAGE RULES:
+- Preserve Urdu exactly in Urdu script. Never translate Urdu into English, Roman Urdu, or another script. Do not correct Urdu unless an obvious accidental character is present.
+- For English, correct every spelling, punctuation, grammar, capitalisation, and fragment. Rewrite shorthand into a complete, parent-ready instruction without changing its meaning or adding facts.
+- Expand common school shorthand before writing the sentence: HW/homework = homework, CW/classwork = classwork, rev = revision, ch = chapter, pg/p = page, q = question, ans = answer, ex = exercise, and w/b = workbook. Never leave these abbreviations in the final diary unless they are part of an official book title.
+- Example: "test pg 72" must become "_Prepare for the test from the content on page 72._"
+- Example: "learn ch 3 q ans" must become "_Learn the questions and answers from Chapter 3._"
+- Example: "hw ex 2" must become "_Complete homework exercise 2._" and "rev ch 4" must become "_Revise Chapter 4._"
+- Never let shorthand, broken English, bare page references, or spelling mistakes pass through.
+- Preserve subjects, tasks, page numbers, deadlines and provided facts. Do not invent homework, dates, marks, books, or deadlines.
+- Use WhatsApp markup only: *bold* for labels and _italics_ for instruction/details. Keep it concise and professional.
 `;
 
 // 2. POLICY PROMPT (Guardrail)
@@ -51,7 +79,7 @@ RULES:
 1. Content must be educational. No personal contact details other than 03234447292 or school address.
 2. No abusive language. Nothing bad about school or staff's personal issues.
 3. RETURN JSON ONLY: { "allowed": boolean, "reason": "string" }.
-4. Make sure that there are no english spelling mistakes (ignore urdu). Also block empty diaries ie which contain no subject information
+4. Be strict: block an entry with English spelling/grammar mistakes, shorthand, fragments, missing subject labels, or content that does not follow the WhatsApp diary structure. Ignore Urdu grammar and retain Urdu script. Also block empty diaries with no subject information.
 `;
 
 interface Class {
@@ -140,19 +168,16 @@ export default function DiaryPage() {
     if (newClassId) {
       const selectedClass = classes.find(c => String(c.id) === newClassId);
       if (selectedClass) {
-        setDiary(`*Class diary*\nClass: ${selectedClass.name} · ${messageDate(date)}\n\n`);
+        setDiary(`${diaryHeader(selectedClass.name, date)}\n\n`);
       }
     } else {
       setDiary('');
     }
   };
 
-  const handleSmartFormat = async () => {
-    if (!classId) return;
-
-    setIsFormatting(true);
+  const formatDiaryWithAI = async (showToast = false) => {
+    if (!classId) return '';
     const selectedClass = classes.find(c => String(c.id) === classId)?.name || "Class";
-
     try {
       const completion = await groq.chat.completions.create({
         messages: [
@@ -166,15 +191,24 @@ export default function DiaryPage() {
         max_tokens: 1024,
       });
 
-      const formattedText = completion.choices[0]?.message?.content;
-      if (formattedText) setDiary(cleanMessageText(formattedText));
-      toast({ title: "✨ Formatted", description: "WhatsApp style applied (Script Preserved).", className: "bg-purple-600 text-white border-none" });
+      const formattedText = cleanDiaryText(completion.choices[0]?.message?.content || '');
+      if (!formattedText) throw Error('The formatter returned an empty diary.');
+      if (showToast) toast({ title: "Formatted", description: "WhatsApp style, emojis and strict language review applied.", className: "bg-purple-600 text-white border-none" });
+      return formattedText;
     } catch (error) {
       console.error("AI Error", error);
-      toast({ title: "AI Error", description: "Service busy, please try again.", variant: "destructive" });
-    } finally {
-      setIsFormatting(false);
+      throw error;
     }
+  };
+
+  const handleSmartFormat = async () => {
+    if (!classId) return;
+    setIsFormatting(true);
+    try {
+      setDiary(await formatDiaryWithAI(true));
+    } catch {
+      toast({ title: "AI Error", description: "The strict formatter is unavailable. Please try again.", variant: "destructive" });
+    } finally { setIsFormatting(false); }
   };
 
   const checkPolicy = async (textToCheck: string) => {
@@ -196,7 +230,7 @@ export default function DiaryPage() {
   };
 
   const addDiary = async () => {
-    const cleaned = cleanMessageText(diary);
+    const cleaned = cleanDiaryText(diary);
     if (!classId || !cleaned || !date) {
       toast({ variant: 'destructive', title: 'Required', description: 'Please fill all fields' });
       return;
@@ -208,16 +242,25 @@ export default function DiaryPage() {
 
     const selectedClass = classes.find(c => String(c.id) === classId);
 
-    // Local Validation - Relaxed slightly to account for formatting chars
-    if (selectedClass && !cleaned.includes(selectedClass.name)) {
-      toast({ variant: 'destructive', title: 'Format Error', description: `Text must contain "${selectedClass.name}". Use AI Format to fix.` });
-      return;
-    }
-
     setSubmitting(true);
 
-    // Policy Check
-    const policy = await checkPolicy(cleaned);
+    // Every outgoing diary is formatted again, even if the sender skipped the
+    // button. This prevents shorthand and English mistakes reaching parents.
+    let formattedDiary = '';
+    try {
+      formattedDiary = await formatDiaryWithAI();
+      setDiary(formattedDiary);
+    } catch {
+      setSubmitting(false);
+      toast({ variant: 'destructive', title: 'Formatting unavailable', description: 'The diary was not sent. Please try again when the strict formatter is available.' });
+      return;
+    }
+    if (selectedClass && !formattedDiary.includes(selectedClass.name)) {
+      setSubmitting(false);
+      toast({ variant: 'destructive', title: 'Format error', description: 'The formatted diary is missing the selected class. Please format it again.' });
+      return;
+    }
+    const policy = await checkPolicy(formattedDiary);
     if (!policy.allowed) {
       setSubmitting(false);
       toast({ variant: 'destructive', title: 'Policy Violation', description: policy.reason });
@@ -225,7 +268,7 @@ export default function DiaryPage() {
     }
 
     const isoDate = new Date(date).toISOString();
-    const diaryText = cleaned.endsWith(SCHOOL_NAME) ? cleaned : `${cleaned}\n\n${SCHOOL_NAME}`;
+    const diaryText = formattedDiary.endsWith(SCHOOL_NAME) ? formattedDiary : `${formattedDiary}\n\n${SCHOOL_NAME}`;
 
     // Insert Diary
     const { data: inserted, error } = await supabase
@@ -338,7 +381,7 @@ export default function DiaryPage() {
                       setDate(e.target.value);
                       if (classId) {
                         const cls = classes.find(c => String(c.id) === classId)?.name;
-                        if (cls) setDiary(`📅 *${e.target.value}* | 🏫 *${cls}*\n\n` + diary.split('\n\n').slice(1).join('\n\n'));
+                        if (cls) setDiary(`${diaryHeader(cls, e.target.value)}\n\n` + diary.split('\n\n').slice(1).join('\n\n'));
                       }
                     }}
                     className={inputClass}
