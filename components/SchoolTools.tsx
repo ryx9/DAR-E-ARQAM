@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useMemo } from 'react';
+import React, { useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import {
   BookOpen,
@@ -69,12 +69,49 @@ const FALLBACK_META = {
 
 interface SchoolToolsProps {
   exclude?: string[];
+  onNavigate?: () => void;
 }
 
-export default function SchoolTools({ exclude = [] }: SchoolToolsProps) {
+export default function SchoolTools({ exclude = [], onNavigate }: SchoolToolsProps) {
   const { access } = useSchoolSession();
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
   const [searchQuery, setSearchQuery] = useState<string>('');
+  const toolsContainerRef = useRef<HTMLDivElement>(null);
+  const searchInputRef = useRef<HTMLInputElement>(null);
+
+  const focusFirstTool = () => {
+    const firstTool =
+      toolsContainerRef.current?.querySelector<HTMLAnchorElement>('[data-school-tool-link]');
+    if (firstTool) {
+      firstTool.focus({ preventScroll: true });
+      return true;
+    }
+    return false;
+  };
+
+  const handleSearchKeyDown = (event: React.KeyboardEvent<HTMLInputElement>) => {
+    if (event.key === 'ArrowDown' && focusFirstTool()) event.preventDefault();
+  };
+
+  const handleToolKeyDown = (event: React.KeyboardEvent<HTMLAnchorElement>) => {
+    const links = Array.from(
+      toolsContainerRef.current?.querySelectorAll<HTMLAnchorElement>('[data-school-tool-link]') ??
+        []
+    );
+    const index = links.indexOf(event.currentTarget);
+
+    if (event.key === 'ArrowDown') {
+      event.preventDefault();
+      links[Math.min(index + 1, links.length - 1)]?.focus({ preventScroll: true });
+    } else if (event.key === 'ArrowUp') {
+      event.preventDefault();
+      if (index <= 0) searchInputRef.current?.focus({ preventScroll: true });
+      else links[index - 1]?.focus({ preventScroll: true });
+    } else if (event.key === 'Escape') {
+      event.preventDefault();
+      searchInputRef.current?.focus({ preventScroll: true });
+    }
+  };
 
   // 1. Raw filtered sections based on user role and exclusion list
   const sections = useMemo(() => {
@@ -162,7 +199,7 @@ export default function SchoolTools({ exclude = [] }: SchoolToolsProps) {
   }, [displaySections]);
 
   return (
-    <div className="space-y-6">
+    <div ref={toolsContainerRef} className="space-y-6">
       {/* ── TOP CONTROLS: SEARCH & CATEGORY PILLS ── */}
       <div className="flex flex-col gap-3.5 sm:flex-row sm:items-center sm:justify-between">
         {/* Category Filter Pills */}
@@ -223,9 +260,12 @@ export default function SchoolTools({ exclude = [] }: SchoolToolsProps) {
             className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground"
           />
           <input
+            id="school-tools-search"
+            ref={searchInputRef}
             type="text"
             value={searchQuery}
             onChange={e => setSearchQuery(e.target.value)}
+            onKeyDown={handleSearchKeyDown}
             placeholder="Search tools..."
             className="panel-glass h-9 w-full rounded-full pl-8.5 pr-8 text-xs font-medium text-foreground placeholder:text-muted-foreground/70 focus:outline-none focus:ring-2 focus:ring-blue-500/40"
           />
@@ -296,14 +336,24 @@ export default function SchoolTools({ exclude = [] }: SchoolToolsProps) {
               {/* Left Column Stack */}
               <div className="flex flex-col gap-5">
                 {colLeft.map(section => (
-                  <SectionPanel key={section.title} section={section} />
+                  <SectionPanel
+                    key={section.title}
+                    section={section}
+                    onNavigate={onNavigate}
+                    onToolKeyDown={handleToolKeyDown}
+                  />
                 ))}
               </div>
 
               {/* Right Column Stack */}
               <div className="flex flex-col gap-5">
                 {colRight.map(section => (
-                  <SectionPanel key={section.title} section={section} />
+                  <SectionPanel
+                    key={section.title}
+                    section={section}
+                    onNavigate={onNavigate}
+                    onToolKeyDown={handleToolKeyDown}
+                  />
                 ))}
               </div>
             </div>
@@ -315,7 +365,15 @@ export default function SchoolTools({ exclude = [] }: SchoolToolsProps) {
 }
 
 /* ── SUB-COMPONENT: Frosted Jelly-Glass Section Panel ─────────────────────── */
-function SectionPanel({ section }: { section: { title: string; links: SchoolLink[] } }) {
+function SectionPanel({
+  section,
+  onNavigate,
+  onToolKeyDown,
+}: {
+  section: { title: string; links: SchoolLink[] };
+  onNavigate?: () => void;
+  onToolKeyDown?: (event: React.KeyboardEvent<HTMLAnchorElement>) => void;
+}) {
   const meta = SECTION_META[section.title] ?? FALLBACK_META;
   const SIcon = meta.Icon;
   const sh = meta.hue;
@@ -356,8 +414,12 @@ function SectionPanel({ section }: { section: { title: string; links: SchoolLink
           <Link
             key={href}
             href={href}
+            data-school-tool-link
+            onClick={onNavigate}
+            onMouseEnter={event => event.currentTarget.focus({ preventScroll: true })}
+            onKeyDown={onToolKeyDown}
             style={{ '--h': hue } as React.CSSProperties}
-            className="jelly-soft group flex items-center justify-between gap-2.5 rounded-xl px-2.5 py-2 transition-all hover:bg-[hsl(var(--h)_85%_95%/0.7)] dark:hover:bg-[hsl(var(--h)_60%_50%/0.14)]"
+            className="jelly-soft group flex items-center justify-between gap-2.5 rounded-xl px-2.5 py-2 transition-all hover:bg-[hsl(var(--h)_85%_95%/0.7)] focus:bg-[hsl(var(--h)_85%_95%/0.7)] focus:outline-none focus:ring-2 focus:ring-[hsl(var(--h)_60%_50%/0.4)] dark:hover:bg-[hsl(var(--h)_60%_50%/0.14)] dark:focus:bg-[hsl(var(--h)_60%_50%/0.14)]"
           >
             <div className="flex min-w-0 items-center gap-2.5">
               <span className="flex h-8.5 w-8.5 shrink-0 items-center justify-center rounded-lg bg-[hsl(var(--h)_82%_95%)] text-[hsl(var(--h)_50%_40%)] shadow-[inset_0_1px_0_rgba(255,255,255,0.7)] transition-transform duration-200 group-hover:scale-105 group-hover:bg-[hsl(var(--h)_75%_90%)] dark:bg-[hsl(var(--h)_55%_50%/0.12)] dark:text-[hsl(var(--h)_80%_72%)] dark:shadow-none dark:group-hover:bg-[hsl(var(--h)_55%_50%/0.22)]">

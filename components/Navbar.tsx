@@ -1,17 +1,14 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useTheme } from 'next-themes';
-import { Moon, Sun, User, X, Menu, ChevronRight, Power, Zap } from 'lucide-react';
+import { LayoutGrid, Moon, Sun, User, X, Menu, Power, Zap } from 'lucide-react';
 import { supabase } from '../utils/supabaseClient';
-import {
-  desktopSchoolLinks,
-  drawerSchoolNavigation,
-  type SchoolLink,
-} from '../utils/schoolNavigation';
+import { desktopSchoolLinks, drawerSchoolNavigation } from '../utils/schoolNavigation';
 import { useSchoolSession } from '../utils/schoolSession';
+import SchoolTools from './SchoolTools';
 
 /* ==========================================================================
    Design notes
@@ -42,12 +39,23 @@ const ROLE_LABELS: Record<string, string> = {
 const BRAND_BUTTON =
   'bg-[hsl(var(--brand))] text-white dark:text-[hsl(var(--brand-deep))] shadow-[inset_0_1px_1px_rgba(255,255,255,0.45),0_8px_16px_-8px_hsl(var(--brand)/0.7)]';
 
+const focusNavbarSearch = () => {
+  window.setTimeout(() => {
+    const drawer = document.getElementById('nav-drawer');
+    const search = drawer?.querySelector<HTMLInputElement>('#school-tools-search');
+    if (drawer?.getAttribute('aria-hidden') === 'false') {
+      search?.focus({ preventScroll: true });
+    }
+  }, 150);
+};
+
 // ----- Component -----
 
 const Navbar = () => {
   const { resolvedTheme: theme, setTheme } = useTheme();
   const [mounted, setMounted] = useState(false);
   const [isOpen, setIsOpen] = useState(false);
+  const menuButtonRef = useRef<HTMLButtonElement>(null);
   const { access, loading } = useSchoolSession();
   const isLoggedIn = Boolean(access);
   const authReady = !loading;
@@ -68,11 +76,43 @@ const Navbar = () => {
     setIsOpen(false);
   }, [pathname]);
 
+  useEffect(() => {
+    const onGlobalShortcut = (event: KeyboardEvent) => {
+      if (
+        event.key.toLowerCase() !== 'k' ||
+        !(event.ctrlKey || event.metaKey) ||
+        event.altKey ||
+        event.shiftKey ||
+        event.repeat
+      ) {
+        return;
+      }
+
+      const target = event.target;
+      if (
+        target instanceof HTMLElement &&
+        (target.isContentEditable || target.closest('input, textarea, select'))
+      ) {
+        return;
+      }
+
+      event.preventDefault();
+      setIsOpen(true);
+      focusNavbarSearch();
+    };
+
+    window.addEventListener('keydown', onGlobalShortcut);
+    return () => window.removeEventListener('keydown', onGlobalShortcut);
+  }, []);
+
   // While the menu is open: Escape closes it and the page behind does not scroll
   useEffect(() => {
     if (!isOpen) return;
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') setIsOpen(false);
+      if (e.key === 'Escape') {
+        setIsOpen(false);
+        menuButtonRef.current?.focus();
+      }
     };
     window.addEventListener('keydown', onKey);
     const previousOverflow = document.body.style.overflow;
@@ -120,44 +160,6 @@ const Navbar = () => {
   const handleNavMouseLeave = (e: React.MouseEvent<HTMLElement>) => {
     e.currentTarget.style.removeProperty('--mx');
     e.currentTarget.style.removeProperty('--my');
-  };
-
-  // ----- Menu section (heading + grid of apps) -----
-  const renderSection = (title: string, items: SchoolLink[]) => {
-    return (
-      <section className="mb-5 last:mb-0">
-        <h3 className="mb-2 border-b border-border/70 px-1 pb-1.5 text-xs font-semibold text-muted-foreground">
-          {title}
-        </h3>
-        <div className="grid grid-cols-2 gap-1.5 md:grid-cols-3">
-          {items.map(item => {
-            const Icon = item.icon;
-            const active = isActive(item.href);
-            return (
-              <Link
-                key={item.href}
-                href={item.href}
-                onClick={() => setIsOpen(false)}
-                aria-current={active ? 'page' : undefined}
-                style={{ '--h': item.hue } as React.CSSProperties}
-                className={`jelly-soft group flex items-center gap-3 rounded-2xl px-2.5 py-2 ${
-                  active
-                    ? 'bg-[hsl(var(--brand)/0.09)] ring-1 ring-inset ring-[hsl(var(--brand)/0.28)]'
-                    : 'hover:bg-muted'
-                }`}
-              >
-                <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[hsl(var(--h)_80%_94%)] text-[hsl(var(--h)_62%_38%)] shadow-[inset_0_1px_1px_rgba(255,255,255,0.8)] dark:bg-[hsl(var(--h)_60%_55%/0.16)] dark:text-[hsl(var(--h)_85%_75%)] dark:shadow-none">
-                  <Icon size={18} strokeWidth={2} />
-                </span>
-                <span className="min-w-0 text-[13.5px] font-medium leading-snug text-foreground">
-                  {item.label}
-                </span>
-              </Link>
-            );
-          })}
-        </div>
-      </section>
-    );
   };
 
   return (
@@ -258,7 +260,15 @@ const Navbar = () => {
               )}
 
               <button
-                onClick={() => setIsOpen(!isOpen)}
+                ref={menuButtonRef}
+                onClick={() => {
+                  if (isOpen) {
+                    setIsOpen(false);
+                  } else {
+                    setIsOpen(true);
+                    focusNavbarSearch();
+                  }
+                }}
                 aria-expanded={isOpen}
                 aria-controls="nav-drawer"
                 aria-label={isOpen ? 'Close menu' : isLoggedIn ? 'Open all tools' : 'Open menu'}
@@ -291,7 +301,7 @@ const Navbar = () => {
         aria-hidden={!isOpen}
         className={`fixed z-[90] flex origin-top flex-col overflow-hidden rounded-[28px] border border-white/60 bg-[hsl(var(--card)/0.9)] shadow-[0_28px_70px_-24px_hsl(var(--brand-deep)/0.5)] backdrop-blur-2xl transition-[opacity,transform,visibility] duration-700 ease-[var(--spring-soft)] dark:border-white/10
           inset-x-3 bottom-3 top-[92px]
-          md:inset-x-auto md:bottom-auto md:right-5 md:top-[92px] md:max-h-[calc(100vh-112px)] md:w-[680px] md:origin-top-right
+          md:inset-x-auto md:bottom-auto md:right-5 md:top-[92px] md:max-h-[calc(100vh-112px)] md:w-[min(860px,calc(100vw-2.5rem))] md:origin-top-right
           ${
             isOpen
               ? 'visible translate-y-0 scale-100 opacity-100'
@@ -342,11 +352,18 @@ const Navbar = () => {
               ))}
           </div>
 
-          {sections.map(section => (
-            <React.Fragment key={section.title}>
-              {renderSection(section.title, section.links)}
-            </React.Fragment>
-          ))}
+          <section aria-label="School tools" className="space-y-4">
+            <div className="flex items-center gap-2.5 border-b border-slate-200/80 pb-3 dark:border-white/10">
+              <LayoutGrid className="h-5 w-5 text-blue-600 dark:text-blue-400" />
+              <h2 className="text-xl font-extrabold tracking-tight text-slate-900 dark:text-white">
+                School Tools
+              </h2>
+            </div>
+            <SchoolTools
+              exclude={['/dashboard', '/timetable']}
+              onNavigate={() => setIsOpen(false)}
+            />
+          </section>
         </div>
       </div>
 
