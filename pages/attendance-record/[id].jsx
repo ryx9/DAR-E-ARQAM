@@ -243,11 +243,11 @@ export default function AttendanceRecordPage() {
             student_id: a.studentid,
             class_id: id,
             number: a.student.mobilenumber,
-            text: parentMessage('Absence notice', [
-              `Student: ${a.student.name}`,
-              `Date: ${format(selectedDate, 'dd MMM yyyy')}`,
-              'Your child was marked absent.',
-            ], 'Please contact the school office if the record needs correction or to let us know the reason for the absence.')
+            text: parentMessage(
+              'Absence notice',
+              `Your child, ${a.student.name}, was marked absent on ${format(selectedDate, 'dd MMM yyyy')}.`,
+              'Please let us know if this is incorrect.'
+            )
           }));
 
         if (absentMessages.length > 0) {

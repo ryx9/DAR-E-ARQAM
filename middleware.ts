@@ -96,7 +96,13 @@ export async function middleware(request: NextRequest) {
       role !== 'superadmin'
     )
       return redirect(role === 'admin' ? '/admin' : '/dashboard');
-    if (!adminCanOpen(pathname, profile)) return redirect('/admin?restricted=1');
+    if (!adminCanOpen(pathname, profile)) {
+      if (adminCanOpen('/admin', profile)) return redirect('/admin?restricted=1');
+      return new NextResponse('You do not have access to this page.', {
+        status: 403,
+        headers: { 'Cache-Control': 'no-store', 'Content-Type': 'text/plain; charset=utf-8' },
+      });
+    }
     return supabaseResponse;
   }
 

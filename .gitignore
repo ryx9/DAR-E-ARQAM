@@ -17,6 +17,8 @@
 !/supabase/migrations/202611200003_admin_data_access.sql
 !/supabase/migrations/202611230001_parent_ptm_message_style.sql
 !/supabase/migrations/202611230002_student_leaves.sql
+!/supabase/migrations/202611240001_admin_module_access.sql
+!/supabase/migrations/202611240002_admin_page_access.sql
 /database
 # Next.js
 /.next/

@@ -15,6 +15,7 @@ import {
 import { motion, AnimatePresence } from "framer-motion"
 import { useToast } from "../../hooks/use-toast"
 import { timetableRows } from "../../utils/timetable.mjs"
+import { ADMIN_MODULES } from "../../utils/adminDataAccess"
 
 export default function ProfilesPage() {
   const { toast } = useToast()
@@ -42,14 +43,30 @@ export default function ProfilesPage() {
 
   // Edit Modal State
   const [editingProfile, setEditingProfile] = useState(null)
-  const [editForm, setEditForm] = useState({ name: "", mobilenumber: "", role: "", selectedClasses: [], admin_fee_access: true, admin_student_access: true })
+  const [editForm, setEditForm] = useState({
+    name: "",
+    mobilenumber: "",
+    role: "",
+    selectedClasses: [],
+    admin_operations_access: true,
+    admin_fee_access: true,
+    admin_student_access: true,
+    admin_academics_access: true,
+    admin_communication_access: true,
+    admin_staff_access: true,
+    admin_page_access: {},
+  })
   const [saveLoading, setSaveLoading] = useState(false)
   const [modalLoading, setModalLoading] = useState(false)
   const [newPassword, setNewPassword] = useState("")
   const [confirmPassword, setConfirmPassword] = useState("")
   const [showNewPassword, setShowNewPassword] = useState(false)
   const [passwordLoading, setPasswordLoading] = useState(false)
-  const accessAvailable = typeof allProfiles.find(profile => profile.id === editingProfile)?.admin_fee_access === 'boolean'
+  const accessProfile = allProfiles.find(profile => profile.id === editingProfile)
+  const accessAvailable =
+    typeof accessProfile?.admin_operations_access === 'boolean' &&
+    typeof accessProfile?.admin_page_access === 'object' &&
+    accessProfile.admin_page_access !== null
 
   const roles = ["teacher", "admin", "superadmin"]
 
@@ -144,8 +161,16 @@ export default function ProfilesPage() {
       name: profile.name || "", 
       mobilenumber: profile.mobilenumber || "", 
       role: profile.role || "teacher",
+      admin_operations_access: profile.admin_operations_access !== false,
       admin_fee_access: profile.admin_fee_access !== false,
       admin_student_access: profile.admin_student_access !== false,
+      admin_academics_access: profile.admin_academics_access !== false,
+      admin_communication_access: profile.admin_communication_access !== false,
+      admin_staff_access: profile.admin_staff_access !== false,
+      admin_page_access:
+        profile.admin_page_access && typeof profile.admin_page_access === 'object'
+          ? profile.admin_page_access
+          : {},
       selectedClasses: []
     })
     
@@ -223,8 +248,13 @@ export default function ProfilesPage() {
         .update({
           name: editForm.name, mobilenumber: editForm.mobilenumber, role: editForm.role,
           ...(editForm.role === 'admin' && accessAvailable && {
+            admin_operations_access: editForm.admin_operations_access,
             admin_fee_access: editForm.admin_fee_access,
             admin_student_access: editForm.admin_student_access,
+            admin_academics_access: editForm.admin_academics_access,
+            admin_communication_access: editForm.admin_communication_access,
+            admin_staff_access: editForm.admin_staff_access,
+            admin_page_access: editForm.admin_page_access,
           }),
         })
         .eq("id", editingProfile)
@@ -273,8 +303,13 @@ export default function ProfilesPage() {
         mobilenumber: editForm.mobilenumber, 
         role: editForm.role,
         ...(editForm.role === 'admin' && accessAvailable && {
+          admin_operations_access: editForm.admin_operations_access,
           admin_fee_access: editForm.admin_fee_access,
           admin_student_access: editForm.admin_student_access,
+          admin_academics_access: editForm.admin_academics_access,
+          admin_communication_access: editForm.admin_communication_access,
+          admin_staff_access: editForm.admin_staff_access,
+          admin_page_access: editForm.admin_page_access,
         }),
       } : p))
       
@@ -677,17 +712,41 @@ export default function ProfilesPage() {
 
                     {editForm.role === 'admin' && (
                       <fieldset className="space-y-3 rounded-lg border p-3" disabled={!accessAvailable}>
-                        <legend className="px-1 text-sm font-semibold">Admin data access</legend>
-                        <label className="flex items-start gap-2 text-sm">
-                          <input type="checkbox" checked={editForm.admin_student_access} onChange={e => setEditForm(prev => ({ ...prev, admin_student_access: e.target.checked }))} />
-                          <span>Student records <small className="block text-gray-500 dark:text-slate-400">Student lists, records, and inquiries.</small></span>
-                        </label>
-                        <label className="flex items-start gap-2 text-sm">
-                          <input type="checkbox" checked={editForm.admin_fee_access} onChange={e => setEditForm(prev => ({ ...prev, admin_fee_access: e.target.checked }))} />
-                          <span>Fees <small className="block text-gray-500 dark:text-slate-400">Invoices, payments, receipts, and fee reports.</small></span>
-                        </label>
-                        <p className="text-xs text-gray-500 dark:text-slate-400">Fee pages and admissions use both types of data and require both switches.</p>
-                        {!accessAvailable && <p className="text-xs text-amber-700 dark:text-amber-300">Admin data access is pending database activation.</p>}
+                        <legend className="px-1 text-sm font-semibold">Admin page access</legend>
+                        <p className="text-xs text-gray-500 dark:text-slate-400">Module switches are master controls. Use the page switches to grant access to specific pages.</p>
+                        {ADMIN_MODULES.map(module => (
+                          <section key={module.key} className="space-y-2 border-t pt-3 first:border-t-0 first:pt-0">
+                            <label className="flex items-start gap-2 text-sm font-semibold">
+                              <input
+                                type="checkbox"
+                                checked={editForm[module.accessField]}
+                                onChange={e => setEditForm(prev => ({ ...prev, [module.accessField]: e.target.checked }))}
+                              />
+                              <span>{module.label} module</span>
+                            </label>
+                            <div className="grid gap-2 pl-6">
+                              {module.pages.map(page => (
+                                <label key={page.key} className="flex items-center gap-2 text-sm">
+                                  <input
+                                    type="checkbox"
+                                    checked={editForm.admin_page_access[page.key] !== false}
+                                    disabled={!editForm[module.accessField]}
+                                    onChange={e => setEditForm(prev => ({
+                                      ...prev,
+                                      admin_page_access: {
+                                        ...prev.admin_page_access,
+                                        [page.key]: e.target.checked,
+                                      },
+                                    }))}
+                                  />
+                                  <span>{page.label}</span>
+                                </label>
+                              ))}
+                            </div>
+                          </section>
+                        ))}
+                        <p className="text-xs text-gray-500 dark:text-slate-400">Fee pages and admissions also require both Fees and Students modules.</p>
+                        {!accessAvailable && <p className="text-xs text-amber-700 dark:text-amber-300">Page-level admin access is pending database activation.</p>}
                       </fieldset>
                     )}
                     {/* Classes Selection */}
