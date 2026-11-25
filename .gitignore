@@ -18,6 +18,7 @@
 !/supabase/migrations/202611230001_parent_ptm_message_style.sql
 !/supabase/migrations/202611230002_student_leaves.sql
 !/supabase/migrations/202611250001_rechecking_module.sql
+!/supabase/migrations/202611250002_normalize_message_line_breaks.sql
 !/supabase/migrations/202611240001_admin_module_access.sql
 !/supabase/migrations/202611240002_admin_page_access.sql
 /database
