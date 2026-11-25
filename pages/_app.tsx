@@ -33,7 +33,9 @@ const EMPTY_SESSION = {
 function useAuth(retry: number) {
   const [state, setState] = useState(EMPTY_SESSION);
   const refreshAccess = useCallback(async () => {
-    setState(current => (current.user ? { ...current, loading: true, error: '' } : current));
+    // A focus event can fire frequently (for example after closing a dialog or
+    // switching tabs). Keep the current page visible while its session is
+    // revalidated instead of replacing it with the full-screen welcome state.
     try {
       const {
         data: { user },
