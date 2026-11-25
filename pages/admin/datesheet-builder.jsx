@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import Link from 'next/link';
 import Navbar from '../../components/Navbar';
 import AssessmentNav from '../../components/AssessmentNav';
 import { supabase } from '../../utils/supabaseClient';
@@ -457,6 +458,11 @@ export default function DatesheetBuilder() {
       <Navbar />
       <main className="container mx-auto max-w-6xl p-4 md:p-8 space-y-6">
         <AssessmentNav />
+        <div className="flex justify-end">
+          <Link href="/rechecking" className="rounded-lg border border-indigo-200 bg-white px-3 py-2 text-sm font-semibold text-indigo-700 shadow-sm hover:bg-indigo-50 dark:border-indigo-800 dark:bg-slate-950 dark:text-indigo-300">
+            Open rechecking control centre
+          </Link>
+        </div>
         <div className="relative overflow-hidden rounded-2xl border border-indigo-200/70 bg-gradient-to-br from-indigo-700 via-indigo-600 to-violet-700 p-6 text-white shadow-xl shadow-indigo-500/20 md:p-8">
           <div className="relative max-w-2xl">
             <p className="text-xs font-bold uppercase tracking-[.2em] text-indigo-200">

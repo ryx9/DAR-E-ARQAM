@@ -172,6 +172,7 @@ export const ADMIN_MODULES = [
         routes: ['/attendance-record/report'],
       },
       { key: 'academics.leaves', label: 'Leaves', routes: ['/leaves'] },
+      { key: 'academics.rechecking', label: 'Rechecking', routes: ['/rechecking'] },
       { key: 'academics.syllabus', label: 'Syllabus', routes: ['/syllabus'] },
       {
         key: 'academics.activities',

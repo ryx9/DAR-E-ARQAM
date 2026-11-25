@@ -37,6 +37,7 @@ const receipts = { href: '/admin/receipts', label: 'Fee receipts', icon: Wallet,
 const students = { href: '/admin/crud', label: 'Manage students', icon: Users, hue: 239 };
 const adminHome = { href: '/admin', label: 'Admin overview', icon: LayoutGrid, hue: 217 };
 const leaveDesk = { href: '/leaves', label: 'Leave desk', icon: UserRoundCheck, hue: 32 };
+const rechecking = { href: '/rechecking', label: 'Rechecking', icon: ClipboardCheck, hue: 281 };
 
 const academics: Section = {
   title: 'Academics',
@@ -48,6 +49,7 @@ const academics: Section = {
     { href: '/reports', label: 'Academic reports', icon: BarChart2, hue: 239 },
     { href: '/attendance-record/report', label: 'Attendance', icon: UserCheck, hue: 173 },
     leaveDesk,
+    rechecking,
     { href: '/syllabus', label: 'Syllabus', icon: BookOpenCheck, hue: 262 },
     { href: '/activities', label: 'Activities', icon: Sparkles, hue: 292 },
   ],
@@ -201,6 +203,7 @@ export function drawerSchoolNavigation(access: SchoolAccess | null): Section[] {
         '/timetable',
         '/attendance-record/report',
         '/leaves',
+        '/rechecking',
         '/syllabus',
         '/marks',
         '/admin/datesheet-builder',

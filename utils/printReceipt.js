@@ -184,5 +184,20 @@ export const printReceipt = ({
     document.body.appendChild(iframe);
   }
 
-  iframe.src = pdfUrl;
+  return new Promise(resolve => {
+    const printReceiptFrame = () => {
+      try {
+        // jsPDF's auto-print metadata is not honoured by every browser/PDF viewer.
+        // Calling print directly makes the native print dialog reliably appear.
+        iframe.contentWindow?.focus();
+        iframe.contentWindow?.print();
+      } finally {
+        URL.revokeObjectURL(pdfUrl);
+        resolve();
+      }
+    };
+
+    iframe.onload = printReceiptFrame;
+    iframe.src = pdfUrl;
+  });
 };

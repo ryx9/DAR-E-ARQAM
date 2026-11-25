@@ -268,7 +268,14 @@ export default function PayInvoiceContent() {
       if (totalPaidAfter >= grandTotal) newStatus = 'paid';
       else if (totalPaidAfter > 0) newStatus = 'partial';
 
-      await supabase.from('fee_invoices').update({ status: newStatus }).eq('id', invoiceId);
+      const { error: invoiceUpdateError } = await supabase
+        .from('fee_invoices')
+        .update({ status: newStatus })
+        .eq('id', invoiceId);
+      if (invoiceUpdateError) throw invoiceUpdateError;
+
+      const balanceAfterPayment = Math.max(0, globalBalance - totalPayingNow);
+      const parentPhone = String(student?.mobilenumber || '').trim();
 
       // SET STUDENT TO ACTIVE IF STATUS WAS invoice_generated AND ANY PAYMENT RECEIVED
       if (totalPayingNow > 0 && student?.studentid && student?.status === 'invoice_generated') {
@@ -295,7 +302,7 @@ export default function PayInvoiceContent() {
       }
 
       // GENERATE & INSERT WHATSAPP MESSAGE (Conditional)
-      if (sendMessageToParent) {
+      if (sendMessageToParent && parentPhone) {
         const receiptText = parentMessage(
           'Fee payment receipt',
           [
@@ -306,7 +313,7 @@ export default function PayInvoiceContent() {
             ...feeLines(calculatedDetails.map(item => [item.fee_type, item.payingNow])),
             `*Paid: ${rupees(totalPayingNow)}*`,
             `Payment method: ${paymentMethod.toUpperCase()}`,
-            `Remaining balance: ${rupees(newBalance)}`,
+            `Remaining balance: ${rupees(balanceAfterPayment)}`,
             `Received by: ${cashierName}`,
           ],
           'Please retain this receipt for your records.',
@@ -330,20 +337,18 @@ export default function PayInvoiceContent() {
         }
       }
 
-      setSubmitting(false);
-
-      // Automatically trigger printing without modal confirmation
-      printReceipt({
+      // Start printing before navigating away so the browser has a live receipt frame.
+      await printReceipt({
         student,
         invoiceId,
         items: calculatedDetails,
         totalPaidNow: totalPayingNow,
-        balanceAfterPayment: globalBalance - totalPayingNow,
+        balanceAfterPayment,
         receiptDate: paidAt,
         cashierName,
       });
 
-      setTimeout(() => router.push('/admin/invoices'), 1000);
+      router.replace('/admin/invoices');
     } catch (error) {
       toast({ title: 'Error', description: error.message, variant: 'destructive' });
       setSubmitting(false);
