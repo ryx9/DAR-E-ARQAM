@@ -49,7 +49,7 @@ export default function RecheckingPage() {
       slightly_poor_count: 0,
       satisfactory_count: 0,
       incomplete_or_absent_count: 0,
-      week_ending: '',
+      syllabus_week: '',
       notes_to_teacher: '',
       outcome: 'completed',
     }),
@@ -222,15 +222,95 @@ export default function RecheckingPage() {
         subject: d.subject,
         very: 0,
         poor: 0,
+        slight: 0,
+        incomplete: 0,
+        sampled: 0,
         reviews: 0,
       };
       x.very += r.very_poor_count;
       x.poor += r.poor_count;
+      x.slight += r.slightly_poor_count;
+      x.incomplete += r.incomplete_or_absent_count;
+      x.sampled +=
+        r.very_poor_count +
+        r.poor_count +
+        r.slightly_poor_count +
+        r.satisfactory_count +
+        r.incomplete_or_absent_count;
       x.reviews++;
       m.set(key, x);
     });
-    return [...m.values()].sort((a, b) => b.very + b.poor - (a.very + a.poor));
+    return [...m.values()]
+      .map(x => ({
+        ...x,
+        concern: x.sampled
+          ? Math.round(
+              ((100 * (x.very * 3 + x.poor * 2 + x.slight + x.incomplete * 2)) / (x.sampled * 3)) *
+                (x.sampled / (x.sampled + 5))
+            )
+          : 0,
+      }))
+      .sort((a, b) => b.concern - a.concern);
   }, [reviews, duties, catalogue.classes]);
+  const coverage = useMemo(() => {
+    const result = new Map();
+    catalogue.subjects.forEach(subject => {
+      const key = `${subject.class_id}|${subject.name}`;
+      result.set(key, {
+        key,
+        className: classes.get(String(subject.class_id)) || subject.class_id,
+        subject: subject.name,
+        rechecks: 0,
+        lastReviewed: null,
+        syllabusWeek: null,
+      });
+    });
+    reviews.forEach(reviewRow => {
+      const duty = duties.find(d => d.id === reviewRow.duty_id);
+      if (!duty || duty.duty_type !== 'routine' || reviewRow.outcome !== 'completed') return;
+      const key = `${duty.class_id}|${duty.subject}`;
+      const item = result.get(key) || {
+        key,
+        className: classes.get(String(duty.class_id)) || duty.class_id,
+        subject: duty.subject,
+        rechecks: 0,
+        lastReviewed: null,
+        syllabusWeek: null,
+      };
+      item.rechecks++;
+      if (!item.lastReviewed || reviewRow.reviewed_on > item.lastReviewed) {
+        item.lastReviewed = reviewRow.reviewed_on;
+        item.syllabusWeek = reviewRow.syllabus_week;
+      }
+      result.set(key, item);
+    });
+    const today = new Date(`${pktDate()}T00:00:00`);
+    return [...result.values()]
+      .map(item => ({
+        ...item,
+        daysSince: item.lastReviewed
+          ? Math.max(0, Math.floor((today - new Date(`${item.lastReviewed}T00:00:00`)) / 86400000))
+          : null,
+      }))
+      .sort(
+        (a, b) => a.rechecks - b.rechecks || (b.daysSince ?? Infinity) - (a.daysSince ?? Infinity)
+      );
+  }, [catalogue.subjects, duties, reviews, catalogue.classes]);
+  const overdue = useMemo(() => {
+    const today = pktDate();
+    return duties
+      .map(duty => {
+        const deadline =
+          duty.duty_type === 'exam' && ['checking', 'returned'].includes(duty.status)
+            ? duty.checking_deadline
+            : duty.status === 'awaiting_recheck'
+              ? duty.rechecking_deadline
+              : null;
+        return deadline && deadline < today ? { ...duty, deadline } : null;
+      })
+      .filter(Boolean)
+      .sort((a, b) => a.deadline.localeCompare(b.deadline));
+  }, [duties]);
   if (loading)
     return (
       <div className="min-h-screen bg-background">
@@ -285,7 +365,6 @@ export default function RecheckingPage() {
             duties={duties}
             reviews={reviews}
             classNames={classes}
-            staffNames={staff}
             onAssign={saveDuty}
             busy={busy === 'save'}
           />
@@ -326,6 +405,11 @@ export default function RecheckingPage() {
                     Round {d.checking_round} · Rechecker: {staff.get(String(d.rechecker_id))} ·{' '}
                     {d.duty_type}
                   </p>
+                  {overdue.some(item => item.id === d.id) && (
+                    <p className="mt-2 text-xs font-bold text-rose-600">
+                      Overdue — action required
+                    </p>
+                  )}
                 </button>
               ))}
               {!duties.length && (
@@ -338,6 +422,45 @@ export default function RecheckingPage() {
         )}
         {tab === 'insights' && (
           <section className="grid gap-5 lg:grid-cols-2">
+            <div className={card}>
+              <div className="flex items-center justify-between">
+                <h2 className="font-bold">Overdue assignments</h2>
+                <span className="rounded-full bg-rose-100 px-2.5 py-1 text-xs font-bold text-rose-700 dark:bg-rose-950 dark:text-rose-200">
+                  {overdue.length}
+                </span>
+              </div>
+              <p className="text-sm text-muted-foreground">
+                Open items whose current checking or rechecking deadline has passed.
+              </p>
+              <div className="mt-3 space-y-2">
+                {overdue.map(duty => (
+                  <button
+                    key={duty.id}
+                    onClick={() => {
+                      setSelected(duty.id);
+                      setTab('work');
+                    }}
+                    className="w-full rounded-lg border border-rose-200 p-3 text-left hover:border-rose-400 dark:border-rose-900"
+                  >
+                    <div className="flex justify-between gap-3">
+                      <b>
+                        {classes.get(String(duty.class_id))} · {duty.subject}
+                      </b>
+                      <span className="text-xs font-bold text-rose-600">Due {duty.deadline}</span>
+                    </div>
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      {duty.duty_type === 'routine' ? 'Awaiting recheck' : 'Exam duty'} · Rechecker:{' '}
+                      {staff.get(String(duty.rechecker_id))}
+                    </p>
+                  </button>
+                ))}
+                {!overdue.length && (
+                  <p className="py-5 text-center text-sm text-emerald-600">
+                    No overdue assignments.
+                  </p>
+                )}
+              </div>
+            </div>
             <div className={card}>
               <div className="flex justify-between">
                 <h2 className="font-bold">Checker quality report</h2>
@@ -378,26 +501,71 @@ export default function RecheckingPage() {
               </div>
             </div>
             <div className={card}>
+              <h2 className="font-bold">Routine coverage queue</h2>
+              <p className="text-sm text-muted-foreground">
+                Least-rechecked subjects first; blank means no completed routine recheck yet.
+              </p>
+              <div className="mt-3 max-h-[26rem] overflow-auto">
+                <table className="w-full text-sm">
+                  <thead className="sticky top-0 bg-white text-left text-xs text-muted-foreground dark:bg-slate-950">
+                    <tr className="border-b">
+                      <th className="p-2">Class / subject</th>
+                      <th>Rechecks</th>
+                      <th>Through week</th>
+                      <th>Last recheck</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {coverage.map(row => (
+                      <tr key={row.key} className="border-b">
+                        <td className="p-2 font-medium">
+                          {row.className} · {row.subject}
+                        </td>
+                        <td>{row.rechecks}</td>
+                        <td>{row.syllabusWeek ? `Week ${row.syllabusWeek}` : '—'}</td>
+                        <td
+                          className={
+                            row.daysSince === null || row.daysSince > 28
+                              ? 'font-semibold text-rose-600'
+                              : 'text-muted-foreground'
+                          }
+                        >
+                          {row.daysSince === null ? 'Never' : `${row.daysSince} days ago`}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+            <div className={card}>
               <h2 className="font-bold">Class / subject heatmap</h2>
               <p className="text-sm text-muted-foreground">
-                Only subjects with completed rechecking are shown.
+                Concern score weights very poor ×3, poor ×2, slightly poor ×1 and incomplete ×2,
+                then softens tiny samples.
               </p>
               <div className="mt-3 space-y-2">
                 {heatmap.map(r => {
-                  const score = r.very * 3 + r.poor;
+                  const tone =
+                    r.concern >= 35
+                      ? 'bg-rose-100 text-rose-800 dark:bg-rose-950 dark:text-rose-200'
+                      : r.concern >= 15
+                        ? 'bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-200'
+                        : 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-200';
                   return (
-                    <div key={`${r.className}${r.subject}`} className="rounded-lg border p-3">
+                    <div
+                      key={`${r.className}${r.subject}`}
+                      className={`rounded-lg border p-3 ${tone}`}
+                    >
                       <div className="flex justify-between text-sm">
                         <b>
                           {r.className} · {r.subject}
                         </b>
-                        <span className={score ? 'text-rose-600' : 'text-emerald-600'}>
-                          {score} concern score
-                        </span>
+                        <span className="font-bold">{r.concern}% concern</span>
                       </div>
                       <p className="mt-1 text-xs text-muted-foreground">
-                        {r.reviews} review{r.reviews === 1 ? '' : 's'} · {r.very} very poor ·{' '}
-                        {r.poor} poor
+                        {r.sampled} items across {r.reviews} review{r.reviews === 1 ? '' : 's'} ·{' '}
+                        {r.very} very poor · {r.poor} poor
                       </p>
                     </div>
                   );
@@ -425,7 +593,8 @@ export default function RecheckingPage() {
                 {classes.get(String(selectedDuty.class_id))} · {selectedDuty.subject} · Round{' '}
                 {selectedDuty.checking_round}
               </p>
-              {selectedDuty.status === 'checking' || selectedDuty.status === 'returned' ? (
+              {selectedDuty.duty_type === 'exam' &&
+              (selectedDuty.status === 'checking' || selectedDuty.status === 'returned') ? (
                 <div className="mt-5 space-y-3">
                   <h3 className="font-semibold">Checker handover</h3>
                   <label>
@@ -497,15 +666,20 @@ export default function RecheckingPage() {
                       </label>
                     ))}
                   </div>
-                  <label>
-                    Week ending (routine)
-                    <input
-                      className={field}
-                      type="date"
-                      value={review.week_ending}
-                      onChange={e => setReview(x => ({ ...x, week_ending: e.target.value }))}
-                    />
-                  </label>
+                  {selectedDuty.duty_type === 'routine' && (
+                    <label>
+                      Syllabus rechecked through week
+                      <input
+                        className={field}
+                        type="number"
+                        min="1"
+                        step="1"
+                        placeholder="e.g. 12"
+                        value={review.syllabus_week}
+                        onChange={e => setReview(x => ({ ...x, syllabus_week: e.target.value }))}
+                      />
+                    </label>
+                  )}
                   <label>
                     Notes to checker
                     <textarea

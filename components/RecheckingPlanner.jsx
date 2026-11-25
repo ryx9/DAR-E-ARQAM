@@ -14,13 +14,13 @@ const statusTone = status =>
     returned: 'bg-rose-100 text-rose-800 dark:bg-rose-950/70 dark:text-rose-200',
     completed: 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950/70 dark:text-emerald-200',
   })[status] || 'bg-slate-100 text-slate-500 dark:bg-slate-800';
+const materialLabels = { book: 'Book', notebook: 'Notebook', workbook: 'Workbook' };
 
 export default function RecheckingPlanner({
   catalogue,
   duties,
   reviews,
   classNames,
-  staffNames,
   onAssign,
   busy,
 }) {
@@ -68,6 +68,14 @@ export default function RecheckingPlanner({
       ),
     [examRows]
   );
+  const routineGroups = useMemo(
+    () =>
+      catalogue.subjects.reduce(
+        (groups, row) => ({ ...groups, [row.class_id]: [...(groups[row.class_id] || []), row] }),
+        {}
+      ),
+    [catalogue.subjects]
+  );
   return (
     <div className="space-y-5">
       <div className="inline-flex rounded-xl border bg-card p-1 shadow-sm">
@@ -94,7 +102,8 @@ export default function RecheckingPlanner({
                 </p>
                 <h2 className="mt-1 text-xl font-bold">Exam duty planner</h2>
                 <p className="mt-1 text-sm text-muted-foreground">
-                  Edit directly in the grid, then open a row to confirm and notify staff.
+                  Assign a checker, rechecker and deadlines in one row. A save immediately notifies
+                  staff.
                 </p>
               </div>
               <select
@@ -261,174 +270,187 @@ export default function RecheckingPlanner({
         </>
       )}
       {workspace === 'routine' && (
-        <section className="rounded-2xl border border-slate-200 bg-card p-4 shadow-sm dark:border-slate-800 sm:p-5">
-          <p className="text-xs font-bold uppercase tracking-[.16em] text-indigo-600 dark:text-indigo-300">
-            Coverage workspace
-          </p>
-          <h2 className="mt-1 text-xl font-bold">Routine book rechecking</h2>
-          <p className="mt-1 text-sm text-muted-foreground">
-            Set staff, materials and deadlines directly in each subject row.
-          </p>
-          <div className="mt-4 space-y-5">
-            {Object.entries(
-              catalogue.subjects.reduce(
-                (out, row) => ({ ...out, [row.class_id]: [...(out[row.class_id] || []), row] }),
-                {}
-              )
-            ).map(([classId, rows]) => (
-              <section className="overflow-x-auto rounded-xl border" key={classId}>
-                <div className="flex items-center justify-between border-b bg-muted px-4 py-3">
+        <section className="rounded-2xl border border-slate-200 bg-card shadow-sm dark:border-slate-800">
+          <div className="border-b p-4 sm:flex sm:items-end sm:justify-between sm:p-5">
+            <div>
+              <p className="text-xs font-bold uppercase tracking-[.16em] text-indigo-600 dark:text-indigo-300">
+                Routine planner
+              </p>
+              <h2 className="mt-1 text-xl font-bold">Books, notebooks & workbooks</h2>
+              <p className="mt-1 max-w-2xl text-sm text-muted-foreground">
+                Choose only the material you want sampled. The subject teacher is filled from the
+                timetable when available; every cell can still be changed.
+              </p>
+            </div>
+            <div className="mt-3 flex gap-2 text-xs sm:mt-0">
+              <span className="rounded-full bg-slate-100 px-3 py-1.5 font-medium text-slate-600 dark:bg-slate-800 dark:text-slate-300">
+                1. Pick material
+              </span>
+              <span className="rounded-full bg-slate-100 px-3 py-1.5 font-medium text-slate-600 dark:bg-slate-800 dark:text-slate-300">
+                2. Assign staff
+              </span>
+              <span className="rounded-full bg-indigo-100 px-3 py-1.5 font-bold text-indigo-700 dark:bg-indigo-950 dark:text-indigo-200">
+                3. Schedule
+              </span>
+            </div>
+          </div>
+          <div className="space-y-5 p-4 sm:p-5">
+            {Object.entries(routineGroups).map(([classId, rows]) => (
+              <section className="overflow-hidden rounded-xl border" key={classId}>
+                <div className="flex items-center justify-between border-b bg-slate-50 px-4 py-3 dark:bg-slate-900/70">
                   <div>
                     <h3 className="font-bold">{classNames.get(String(classId))}</h3>
-                    <p className="text-xs text-muted-foreground">One row per assigned subject</p>
+                    <p className="text-xs text-muted-foreground">
+                      {rows.length} subject{rows.length === 1 ? '' : 's'} ready to plan
+                    </p>
                   </div>
-                  <span className="text-xs font-bold text-indigo-600">Editable grid</span>
+                  <span className="rounded-full border bg-background px-2.5 py-1 text-xs font-semibold text-muted-foreground">
+                    Editable grid
+                  </span>
                 </div>
-                <table className="w-full min-w-[1100px] text-sm">
-                  <thead className="border-b bg-muted/60 text-left text-xs uppercase tracking-wide text-muted-foreground">
-                    <tr>
-                      <th className="p-3">Subject</th>
-                      <th>Materials</th>
-                      <th>Checker</th>
-                      <th>Rechecker</th>
-                      <th>Check due</th>
-                      <th>Recheck due</th>
-                      <th>Last result</th>
-                      <th className="pr-3"></th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {rows.map(row => {
-                      const item = latest(row.class_id, row.name),
-                        id = checker(row.class_id, row.name),
-                        key = `routine-${row.class_id}-${row.name}`,
-                        draft = drafts[key] || {},
-                        value = (name, fallback = '') => draft[name] ?? fallback,
-                        editable = ['checking', 'returned'].includes(item?.duty?.status),
-                        handedOver = item?.duty?.status === 'awaiting_recheck',
-                        materials = value(
+                <div className="overflow-x-auto">
+                  <table className="w-full min-w-[1180px] text-sm">
+                    <thead className="border-b bg-slate-50/80 text-left text-xs uppercase tracking-wide text-slate-500 dark:bg-slate-900/40">
+                      <tr>
+                        <th className="sticky left-0 z-10 bg-inherit p-3">Subject & history</th>
+                        <th>Sample</th>
+                        <th>Checker</th>
+                        <th>Rechecker</th>
+                        <th>Recheck due</th>
+                        <th>Status</th>
+                        <th className="pr-3"></th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {rows.map(row => {
+                        const item = latest(row.class_id, row.name);
+                        const id = checker(row.class_id, row.name);
+                        const key = `routine-${row.class_id}-${row.name}`;
+                        const draft = drafts[key] || {};
+                        const value = (name, fallback = '') => draft[name] ?? fallback;
+                        const editable = ['checking', 'returned'].includes(item?.duty?.status);
+                        const handedOver = item?.duty?.status === 'awaiting_recheck';
+                        const materials = value(
                           'materials',
-                          item?.duty?.materials || ['book', 'notebook', 'workbook']
+                          editable ? item?.duty?.materials || [] : []
                         );
-                      return (
-                        <tr
-                          className="border-b last:border-0 hover:bg-indigo-50/40 dark:hover:bg-indigo-950/10"
-                          key={key}
-                        >
-                          <td className="p-3 font-semibold">{row.name}</td>
-                          <td>
-                            <div className="flex gap-2">
-                              {['book', 'notebook', 'workbook'].map(material => (
-                                <label key={material} className="whitespace-nowrap text-xs">
-                                  <input
-                                    className="mr-1"
-                                    type="checkbox"
-                                    checked={materials.includes(material)}
-                                    onChange={e =>
-                                      edit(key, {
-                                        materials: e.target.checked
-                                          ? [...materials, material]
-                                          : materials.filter(x => x !== material),
-                                      })
-                                    }
-                                  />
-                                  {material}
-                                </label>
-                              ))}
-                            </div>
-                          </td>
-                          <td>
-                            <select
-                              className="w-36 rounded-md border-0 bg-transparent p-1.5 hover:bg-muted focus:bg-background focus:ring-2 focus:ring-indigo-300"
-                              value={value('checker_id', item?.duty?.checker_id || id)}
-                              onChange={e => edit(key, { checker_id: e.target.value })}
-                            >
-                              <option value="">Choose checker</option>
-                              {catalogue.staff.map(s => (
-                                <option value={s.id} key={s.id}>
-                                  {s.name}
-                                </option>
-                              ))}
-                            </select>
-                          </td>
-                          <td>
-                            <select
-                              className="w-36 rounded-md border-0 bg-transparent p-1.5 hover:bg-muted focus:bg-background focus:ring-2 focus:ring-indigo-300"
-                              value={value('rechecker_id', item?.duty?.rechecker_id || '')}
-                              onChange={e => edit(key, { rechecker_id: e.target.value })}
-                            >
-                              <option value="">Choose rechecker</option>
-                              {catalogue.staff.map(s => (
-                                <option value={s.id} key={s.id}>
-                                  {s.name}
-                                </option>
-                              ))}
-                            </select>
-                          </td>
-                          <td>
-                            <input
-                              className="w-32 rounded-md border-0 bg-transparent p-1.5 hover:bg-muted focus:bg-background focus:ring-2 focus:ring-indigo-300"
-                              type="date"
-                              value={value(
-                                'checking_deadline',
-                                item?.duty?.checking_deadline || ''
-                              )}
-                              onChange={e => edit(key, { checking_deadline: e.target.value })}
-                            />
-                          </td>
-                          <td>
-                            <input
-                              className="w-32 rounded-md border-0 bg-transparent p-1.5 hover:bg-muted focus:bg-background focus:ring-2 focus:ring-indigo-300"
-                              type="date"
-                              value={value(
-                                'rechecking_deadline',
-                                item?.duty?.rechecking_deadline || ''
-                              )}
-                              onChange={e => edit(key, { rechecking_deadline: e.target.value })}
-                            />
-                          </td>
-                          <td>
-                            {item?.review
-                              ? `${item.review.very_poor_count} very poor · ${item.review.poor_count} poor`
-                              : 'No prior result'}
-                          </td>
-                          <td className="pr-3">
-                            <button
-                              disabled={busy || handedOver}
-                              className="rounded-lg bg-indigo-600 px-3 py-1.5 text-xs font-bold text-white disabled:opacity-50"
-                              onClick={() =>
-                                onAssign({
-                                  duty_type: 'routine',
-                                  class_id: row.class_id,
-                                  subject: row.name,
-                                  title: `${row.name} routine rechecking`,
-                                  checker_id: value('checker_id', item?.duty?.checker_id || id),
-                                  rechecker_id: value(
-                                    'rechecker_id',
-                                    item?.duty?.rechecker_id || ''
-                                  ),
-                                  materials,
-                                  checking_deadline: value(
-                                    'checking_deadline',
-                                    item?.duty?.checking_deadline || ''
-                                  ),
-                                  rechecking_deadline: value(
-                                    'rechecking_deadline',
-                                    item?.duty?.rechecking_deadline || ''
-                                  ),
-                                  id: editable ? item?.duty?.id : undefined,
-                                  revision: editable ? item?.duty?.revision : undefined,
-                                })
-                              }
-                            >
-                              {editable ? 'Save' : handedOver ? 'Handed over' : 'Assign'}
-                            </button>
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
+                        const latestResult = item?.review
+                          ? `${item.review.very_poor_count} very poor · ${item.review.poor_count} poor`
+                          : 'No completed sample yet';
+                        return (
+                          <tr
+                            className="border-b last:border-0 hover:bg-indigo-50/40 dark:hover:bg-indigo-950/10"
+                            key={key}
+                          >
+                            <td className="sticky left-0 z-10 bg-card p-3">
+                              <p className="font-semibold">{row.name}</p>
+                              <p className="mt-0.5 text-xs text-muted-foreground">{latestResult}</p>
+                            </td>
+                            <td>
+                              <div className="flex gap-1.5">
+                                {Object.entries(materialLabels).map(([material, label]) => {
+                                  const selected = materials.includes(material);
+                                  return (
+                                    <button
+                                      key={material}
+                                      type="button"
+                                      aria-pressed={selected}
+                                      onClick={() =>
+                                        edit(key, {
+                                          materials: selected
+                                            ? materials.filter(x => x !== material)
+                                            : [...materials, material],
+                                        })
+                                      }
+                                      className={`rounded-md border px-2 py-1.5 text-xs font-semibold transition ${selected ? 'border-indigo-600 bg-indigo-600 text-white' : 'border-slate-200 bg-white text-slate-600 hover:border-indigo-300 hover:text-indigo-700 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300'}`}
+                                    >
+                                      {label}
+                                    </button>
+                                  );
+                                })}
+                              </div>
+                            </td>
+                            <td>
+                              <select
+                                className="w-40 rounded-md border-0 bg-transparent p-1.5 hover:bg-slate-100 focus:bg-background focus:ring-2 focus:ring-indigo-300 dark:hover:bg-slate-800"
+                                value={value('checker_id', item?.duty?.checker_id || id)}
+                                onChange={e => edit(key, { checker_id: e.target.value })}
+                              >
+                                <option value="">Choose checker</option>
+                                {catalogue.staff.map(s => (
+                                  <option value={s.id} key={s.id}>
+                                    {s.name}
+                                  </option>
+                                ))}
+                              </select>
+                            </td>
+                            <td>
+                              <select
+                                className="w-40 rounded-md border-0 bg-transparent p-1.5 hover:bg-slate-100 focus:bg-background focus:ring-2 focus:ring-indigo-300 dark:hover:bg-slate-800"
+                                value={value('rechecker_id', item?.duty?.rechecker_id || '')}
+                                onChange={e => edit(key, { rechecker_id: e.target.value })}
+                              >
+                                <option value="">Choose rechecker</option>
+                                {catalogue.staff.map(s => (
+                                  <option value={s.id} key={s.id}>
+                                    {s.name}
+                                  </option>
+                                ))}
+                              </select>
+                            </td>
+                            <td>
+                              <input
+                                className="w-32 rounded-md border-0 bg-transparent p-1.5 hover:bg-slate-100 focus:bg-background focus:ring-2 focus:ring-indigo-300 dark:hover:bg-slate-800"
+                                type="date"
+                                value={value(
+                                  'rechecking_deadline',
+                                  editable ? item?.duty?.rechecking_deadline || '' : ''
+                                )}
+                                onChange={e => edit(key, { rechecking_deadline: e.target.value })}
+                              />
+                            </td>
+                            <td>
+                              <span
+                                className={`rounded-full px-2.5 py-1 text-xs font-bold ${statusTone(item?.duty?.status)}`}
+                              >
+                                {statusLabel(item?.duty?.status)}
+                              </span>
+                            </td>
+                            <td className="pr-3">
+                              <button
+                                disabled={busy || handedOver}
+                                className="rounded-lg bg-indigo-600 px-3 py-1.5 text-xs font-bold text-white hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-50"
+                                onClick={() =>
+                                  onAssign({
+                                    duty_type: 'routine',
+                                    class_id: row.class_id,
+                                    subject: row.name,
+                                    title: `${row.name} routine rechecking`,
+                                    checker_id: value('checker_id', item?.duty?.checker_id || id),
+                                    rechecker_id: value(
+                                      'rechecker_id',
+                                      item?.duty?.rechecker_id || ''
+                                    ),
+                                    materials,
+                                    checking_deadline: '',
+                                    rechecking_deadline: value(
+                                      'rechecking_deadline',
+                                      editable ? item?.duty?.rechecking_deadline || '' : ''
+                                    ),
+                                    id: editable ? item?.duty?.id : undefined,
+                                    revision: editable ? item?.duty?.revision : undefined,
+                                  })
+                                }
+                              >
+                                {editable ? 'Save' : handedOver ? 'Handed over' : 'Assign'}
+                              </button>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
               </section>
             ))}
           </div>
