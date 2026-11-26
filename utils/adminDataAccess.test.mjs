@@ -39,6 +39,17 @@ test('fee and admission routes require both fees and student access', () => {
   assert.equal(adminCanOpen('/admin/inquiries', withoutFees), true);
 });
 
+test('invoice printing and fee reports have independent page permissions', () => {
+  const access = {
+    ...adminAccess,
+    admin_page_access: { 'fees.reports': true, 'fees.invoice-print': false },
+  };
+  assert.equal(adminCanOpen('/admin/report', access), true);
+  assert.equal(adminCanOpen('/admin/invoice/print', access), false);
+  assert.equal(adminCanOpen('/admin/invoice/print', { ...access, admin_page_access: { 'fees.invoice-print': true } }), true);
+  assert.equal(adminCanOpen('/admin/invoice/print', { ...access, admin_student_access: false }), false);
+});
+
 test('only admins are restricted by admin module permissions', () => {
   assert.equal(
     adminCanOpen('/timetable', { ...adminAccess, role: 'teacher', admin_academics_access: false }),

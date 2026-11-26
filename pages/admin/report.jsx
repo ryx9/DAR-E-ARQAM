@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
 import Navbar from "../../components/Navbar"
 import Loader from "../../components/Loader"
@@ -14,14 +14,22 @@ import {
 } from "lucide-react"
 import { useToast } from "../../hooks/use-toast"
 import { generateCollectionReportBlob } from "../../utils/collectionReport" 
+import { adminCanOpen } from "../../utils/adminDataAccess"
+import { useSchoolSession } from "../../utils/schoolSession"
 
 export default function ReportsPage() {
   const router = useRouter()
   const { toast } = useToast()
+  const { access } = useSchoolSession()
+  const canPrintInvoices = Boolean(access) && adminCanOpen('/admin/invoice/print', access)
   
   // --- States ---
   const [loading, setLoading] = useState(false)
   const [reportType, setReportType] = useState("collection") // "collection" | "defaulter" | "statement" | "feesummary" | "studentslist"
+
+  useEffect(() => {
+    if (!canPrintInvoices && reportType === "invoices") setReportType("collection")
+  }, [canPrintInvoices, reportType])
   
   // Date Range State
   const [dateRange, setDateRange] = useState({
@@ -51,6 +59,11 @@ export default function ReportsPage() {
     }
     if (reportType === "monthly") {
       router.push('/admin/monthly-fee-report')
+      return
+    }
+    if (reportType === "invoices") {
+      if (!canPrintInvoices) return
+      router.push('/admin/invoice/print')
       return
     }
 
@@ -96,6 +109,13 @@ export default function ReportsPage() {
   const requiresDates = reportType === "collection" || reportType === "defaulter";
 
   switch (reportType) {
+    case "invoices":
+      title = "Fee Invoices";
+      description = "Find and print fee invoices by class and invoice date range.";
+      BgIcon = FileText;
+      themeColor = "blue";
+      buttonText = "Find Fee Invoices";
+      break;
     case "monthly":
       title = "Monthly Fee Overview";
       description = "Compare invoices and payments for each student, month by month.";
@@ -195,6 +215,7 @@ export default function ReportsPage() {
                   onChange={(e) => setReportType(e.target.value)}
                 >
                   <option value="collection" className="text-black dark:text-white dark:bg-slate-800">Collection Report</option>
+                  {canPrintInvoices && <option value="invoices" className="text-black dark:text-white dark:bg-slate-800">Fee Invoices</option>}
                   <option value="defaulter" className="text-black dark:text-white dark:bg-slate-800">Defaulter List</option>
                   <option value="statement" className="text-black dark:text-white dark:bg-slate-800">Student Fee Statement</option>
                   <option value="monthly" className="text-black dark:text-white dark:bg-slate-800">Monthly Fee Overview</option>

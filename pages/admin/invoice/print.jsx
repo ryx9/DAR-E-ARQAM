@@ -58,6 +58,7 @@ function PrintInvoicesContent() {
   const [processingPdf, setProcessingPdf] = useState(false)
   const [invoices, setInvoices] = useState([])
   const [autoPrintMode, setAutoPrintMode] = useState(false)
+  const [searched, setSearched] = useState(false)
 
   // Manual Selection State
   const [classes, setClasses] = useState([])
@@ -99,7 +100,7 @@ function PrintInvoicesContent() {
     
     if (data && data.length > 0) {
       setInvoices(data)
-      await generatePDF(data)
+      await generatePDF(data, true)
     } else {
       toast({ title: "No invoices found", variant: "destructive" })
       setAutoPrintMode(false) 
@@ -154,36 +155,40 @@ function PrintInvoicesContent() {
 
   const handleManualSearch = async () => {
     if (!selectedClassId) return toast({ title: "Select a class", variant: "destructive" })
+    if (!dateRange.start || !dateRange.end || dateRange.end < dateRange.start)
+      return toast({ title: "Select a valid invoice date range", variant: "destructive" })
 
     setLoading(true)
+    setSearched(false)
+    setInvoices([])
     try {
-      const { data: students } = await supabase
-        .from("students").select("studentid").eq("class_id", selectedClassId)
+      const found = []
+      let offset = 0
+      while (true) {
+        const { data, error } = await supabase
+          .from("fee_invoices")
+          .select(`
+            *,
+            students!inner (
+              name, fathername, studentid, class_id,
+              classes ( name )
+            ),
+            fee_invoice_details ( fee_type, amount )
+          `)
+          .eq("students.class_id", selectedClassId)
+          .gte("invoice_date", dateRange.start)
+          .lte("invoice_date", dateRange.end)
+          .neq("status", "expired")
+          .order("id")
+          .range(offset, offset + 999)
 
-      const studentIds = students.map(s => s.studentid)
-      if (studentIds.length === 0) {
-        setInvoices([])
-        setLoading(false)
-        return
+        if (error) throw error
+        found.push(...(data || []))
+        if (!data || data.length < 1000) break
+        offset += 1000
       }
-
-      const { data, error } = await supabase
-        .from("fee_invoices")
-        .select(`
-          *,
-          students (
-            name, fathername, studentid,
-            classes ( name )
-          ),
-          fee_invoice_details ( fee_type, amount )
-        `)
-        .in("student_id", studentIds)
-        .gte("invoice_date", dateRange.start)
-        .lte("invoice_date", dateRange.end)
-        .neq("status", "expired")
-
-      if (error) throw error
-      setInvoices(await attachInvoicePayments(data || []))
+      setInvoices(await attachInvoicePayments(found))
+      setSearched(true)
       
     } catch (error) {
       console.error(error)
@@ -194,7 +199,7 @@ function PrintInvoicesContent() {
   }
 
   // --- 3. HEAVY CORPORATE DESIGN PDF GENERATOR ---
-  const generatePDF = async (dataToPrint = invoices) => {
+  const generatePDF = async (dataToPrint = invoices, returnAfterPrint = false) => {
     if (!dataToPrint || dataToPrint.length === 0) return
 
     setProcessingPdf(true)
@@ -443,8 +448,10 @@ function PrintInvoicesContent() {
       const opened = window.open(pdfBlobUrl, '_blank')
       if (!opened) throw new Error('The PDF window was blocked. Allow pop-ups and try again.')
       setAutoPrintMode(false)
-      if (window.history.length > 1) router.back()
-      else router.replace('/admin/invoices')
+      if (returnAfterPrint) {
+        if (window.history.length > 1) router.back()
+        else router.replace('/admin/invoices')
+      }
       
     } catch (e) {
       console.error(e)
@@ -488,7 +495,7 @@ function PrintInvoicesContent() {
                 <select 
                   className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
                   value={selectedClassId}
-                  onChange={(e) => setSelectedClassId(e.target.value)}
+                  onChange={(e) => { setSelectedClassId(e.target.value); setInvoices([]); setSearched(false) }}
                 >
                   <option value="">Select Class</option>
                   {classes.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
@@ -496,11 +503,11 @@ function PrintInvoicesContent() {
               </div>
               <div>
                 <Label>From Date</Label>
-                <Input type="date" value={dateRange.start} onChange={e => setDateRange({...dateRange, start: e.target.value})} />
+                <Input type="date" value={dateRange.start} onChange={e => { setDateRange({...dateRange, start: e.target.value}); setInvoices([]); setSearched(false) }} />
               </div>
               <div>
                 <Label>To Date</Label>
-                <Input type="date" value={dateRange.end} onChange={e => setDateRange({...dateRange, end: e.target.value})} />
+                <Input type="date" value={dateRange.end} onChange={e => { setDateRange({...dateRange, end: e.target.value}); setInvoices([]); setSearched(false) }} />
               </div>
               <div>
                 <Button onClick={handleManualSearch} className="w-full" disabled={loading}>
@@ -509,6 +516,10 @@ function PrintInvoicesContent() {
               </div>
             </div>
           </div>
+
+          {searched && invoices.length === 0 && (
+            <p className="text-sm text-slate-500" role="status">No invoices found for this class and date range.</p>
+          )}
 
           {invoices.length > 0 && (
             <div className="space-y-4">

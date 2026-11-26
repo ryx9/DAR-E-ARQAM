@@ -49,7 +49,7 @@ export const ADMIN_MODULES = [
       },
       {
         key: 'fees.invoice-print',
-        label: 'Print invoice',
+        label: 'Print fee invoices (including from Fee reports)',
         routes: ['/admin/invoice/print'],
       },
       { key: 'fees.receipts', label: 'Fee receipts', routes: ['/admin/receipts'] },

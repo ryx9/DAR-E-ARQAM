@@ -746,6 +746,7 @@ export default function ProfilesPage() {
                           </section>
                         ))}
                         <p className="text-xs text-gray-500 dark:text-slate-400">Fee pages and admissions also require both Fees and Students modules.</p>
+                        <p className="text-xs text-gray-500 dark:text-slate-400">To print invoices from Fee reports, enable both Fee reports and Print fee invoices.</p>
                         {!accessAvailable && <p className="text-xs text-amber-700 dark:text-amber-300">Page-level admin access is pending database activation.</p>}
                       </fieldset>
                     )}
