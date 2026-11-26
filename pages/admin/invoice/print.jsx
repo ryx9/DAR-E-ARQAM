@@ -356,7 +356,7 @@ function PrintInvoicesContent() {
             }
           })
 
-          autoTable(doc, {
+          if (paidOnInvoice !== 0) autoTable(doc, {
             startY: doc.lastAutoTable.finalY + 3,
             head: [['PAYMENT SUMMARY', 'PKR']],
             body: [
