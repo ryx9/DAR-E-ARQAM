@@ -15,7 +15,7 @@ import {
 import { motion, AnimatePresence } from "framer-motion"
 import { useToast } from "../../hooks/use-toast"
 import { timetableRows } from "../../utils/timetable.mjs"
-import { ADMIN_MODULES } from "../../utils/adminDataAccess"
+import { ADMIN_MODULES, STUDENT_REPORT_DETAILS_ACCESS } from "../../utils/adminDataAccess"
 
 export default function ProfilesPage() {
   const { toast } = useToast()
@@ -742,10 +742,28 @@ export default function ProfilesPage() {
                                   <span>{page.label}</span>
                                 </label>
                               ))}
+                              {module.key === 'students' && (
+                                <label className="flex items-center gap-2 text-sm">
+                                  <input
+                                    type="checkbox"
+                                    checked={editForm.admin_page_access[STUDENT_REPORT_DETAILS_ACCESS] !== false}
+                                    disabled={!editForm[module.accessField] || editForm.admin_page_access['students.lists'] === false}
+                                    onChange={e => setEditForm(prev => ({
+                                      ...prev,
+                                      admin_page_access: {
+                                        ...prev.admin_page_access,
+                                        [STUDENT_REPORT_DETAILS_ACCESS]: e.target.checked,
+                                      },
+                                    }))}
+                                  />
+                                  <span>Contact numbers and fees in student list reports</span>
+                                </label>
+                              )}
                             </div>
                           </section>
                         ))}
                         <p className="text-xs text-gray-500 dark:text-slate-400">Fee pages and admissions also require both Fees and Students modules.</p>
+                        <p className="text-xs text-gray-500 dark:text-slate-400">The contact and fee checkbox only controls student list and award sheet reports; it does not restrict database access or other pages.</p>
                         <p className="text-xs text-gray-500 dark:text-slate-400">To print invoices from Fee reports, enable both Fee reports and Print fee invoices.</p>
                         {!accessAvailable && <p className="text-xs text-amber-700 dark:text-amber-300">Page-level admin access is pending database activation.</p>}
                       </fieldset>

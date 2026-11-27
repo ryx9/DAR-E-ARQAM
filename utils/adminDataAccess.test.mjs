@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { adminCanOpen } from './adminDataAccess.ts';
+import { adminCanOpen, canSeeStudentReportDetails, STUDENT_REPORT_DETAILS_ACCESS } from './adminDataAccess.ts';
 
 const adminAccess = {
   role: 'admin',
@@ -11,6 +11,15 @@ const adminAccess = {
   admin_communication_access: true,
   admin_staff_access: true,
 };
+
+test('student report details can be hidden independently of student list access', () => {
+  const access = { ...adminAccess, admin_page_access: { [STUDENT_REPORT_DETAILS_ACCESS]: false } };
+  assert.equal(adminCanOpen('/admin/studentslist', access), true);
+  assert.equal(canSeeStudentReportDetails(access), false);
+  assert.equal(canSeeStudentReportDetails(adminAccess), true);
+  assert.equal(canSeeStudentReportDetails({ ...access, role: 'superadmin' }), true);
+  assert.equal(canSeeStudentReportDetails(null), false);
+});
 
 test('admin module permissions cover module routes without blocking other modules', () => {
   const access = { ...adminAccess, admin_academics_access: false };

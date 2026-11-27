@@ -60,7 +60,6 @@ export default function RecheckingPage() {
       notes: '',
     });
   async function load() {
-    setLoading(true);
     try {
       const role = await getClassAccess();
       if (!['admin', 'superadmin', 'teacher'].includes(role.role))
@@ -76,8 +75,10 @@ export default function RecheckingPage() {
       );
       setDuties(dutyRows.data || []);
       setReviews(reviewRows.data || []);
+      return true;
     } catch (e) {
       toast({ variant: 'destructive', title: 'Unable to load rechecking', description: e.message });
+      return false;
     } finally {
       setLoading(false);
     }
@@ -127,7 +128,7 @@ export default function RecheckingPage() {
           ? 'The assignment changes have been saved.'
           : 'Checker and rechecker notifications have been queued.',
       });
-      await load();
+      return await load();
     } catch (e) {
       toast({ variant: 'destructive', title: 'Could not save duty', description: e.message });
     } finally {
@@ -405,6 +406,16 @@ export default function RecheckingPage() {
                     Round {d.checking_round} · Rechecker: {staff.get(String(d.rechecker_id))} ·{' '}
                     {d.duty_type}
                   </p>
+                  {d.checking_deadline && d.duty_type === 'exam' && (
+                    <p className="mt-2 text-xs text-muted-foreground">
+                      Checking due: {d.checking_deadline}
+                    </p>
+                  )}
+                  {d.rechecking_deadline && (
+                    <p className="mt-2 text-xs text-muted-foreground">
+                      Rechecking due: {d.rechecking_deadline}
+                    </p>
+                  )}
                   {overdue.some(item => item.id === d.id) && (
                     <p className="mt-2 text-xs font-bold text-rose-600">
                       Overdue — action required
@@ -593,6 +604,16 @@ export default function RecheckingPage() {
                 {classes.get(String(selectedDuty.class_id))} · {selectedDuty.subject} · Round{' '}
                 {selectedDuty.checking_round}
               </p>
+              {selectedDuty.checking_deadline && selectedDuty.duty_type === 'exam' && (
+                <p className="mt-2 text-sm text-muted-foreground">
+                  Checking due: {selectedDuty.checking_deadline}
+                </p>
+              )}
+              {selectedDuty.rechecking_deadline && (
+                <p className="mt-2 text-sm text-muted-foreground">
+                  Rechecking due: {selectedDuty.rechecking_deadline}
+                </p>
+              )}
               {selectedDuty.duty_type === 'exam' &&
               (selectedDuty.status === 'checking' || selectedDuty.status === 'returned') ? (
                 <div className="mt-5 space-y-3">

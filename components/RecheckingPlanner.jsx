@@ -60,6 +60,16 @@ export default function RecheckingPlanner({
   };
   const edit = (key, values) =>
     setDrafts(current => ({ ...current, [key]: { ...current[key], ...values } }));
+  const saveRow = async (key, candidate) => {
+    const savedDraft = drafts[key];
+    if (!(await onAssign(candidate))) return;
+    setDrafts(current => {
+      if (current[key] !== savedDraft) return current;
+      const next = { ...current };
+      delete next[key];
+      return next;
+    });
+  };
   const groupedExams = useMemo(
     () =>
       examRows.reduce(
@@ -232,7 +242,7 @@ export default function RecheckingPlanner({
                                   disabled={busy || (!!duty && !editable)}
                                   className="rounded-lg bg-indigo-600 px-3 py-1.5 text-xs font-bold text-white hover:bg-indigo-700 disabled:opacity-50"
                                   onClick={() =>
-                                    onAssign({
+                                    saveRow(test.id, {
                                       duty_type: 'exam',
                                       batch_id: batch.id,
                                       test_id: test.id,
@@ -332,7 +342,7 @@ export default function RecheckingPlanner({
                         const handedOver = item?.duty?.status === 'awaiting_recheck';
                         const materials = value(
                           'materials',
-                          editable ? item?.duty?.materials || [] : []
+                          editable || handedOver ? item?.duty?.materials || [] : []
                         );
                         const latestResult = item?.review
                           ? `${item.review.very_poor_count} very poor · ${item.review.poor_count} poor`
@@ -354,6 +364,7 @@ export default function RecheckingPlanner({
                                     <button
                                       key={material}
                                       type="button"
+                                      disabled={busy || handedOver}
                                       aria-pressed={selected}
                                       onClick={() =>
                                         edit(key, {
@@ -373,6 +384,7 @@ export default function RecheckingPlanner({
                             <td>
                               <select
                                 className="w-40 rounded-md border-0 bg-transparent p-1.5 hover:bg-slate-100 focus:bg-background focus:ring-2 focus:ring-indigo-300 dark:hover:bg-slate-800"
+                                disabled={busy || handedOver}
                                 value={value('checker_id', item?.duty?.checker_id || id)}
                                 onChange={e => edit(key, { checker_id: e.target.value })}
                               >
@@ -387,6 +399,7 @@ export default function RecheckingPlanner({
                             <td>
                               <select
                                 className="w-40 rounded-md border-0 bg-transparent p-1.5 hover:bg-slate-100 focus:bg-background focus:ring-2 focus:ring-indigo-300 dark:hover:bg-slate-800"
+                                disabled={busy || handedOver}
                                 value={value('rechecker_id', item?.duty?.rechecker_id || '')}
                                 onChange={e => edit(key, { rechecker_id: e.target.value })}
                               >
@@ -402,9 +415,12 @@ export default function RecheckingPlanner({
                               <input
                                 className="w-32 rounded-md border-0 bg-transparent p-1.5 hover:bg-slate-100 focus:bg-background focus:ring-2 focus:ring-indigo-300 dark:hover:bg-slate-800"
                                 type="date"
+                                disabled={busy || handedOver}
                                 value={value(
                                   'rechecking_deadline',
-                                  editable ? item?.duty?.rechecking_deadline || '' : ''
+                                  editable || handedOver
+                                    ? item?.duty?.rechecking_deadline || ''
+                                    : ''
                                 )}
                                 onChange={e => edit(key, { rechecking_deadline: e.target.value })}
                               />
@@ -421,7 +437,7 @@ export default function RecheckingPlanner({
                                 disabled={busy || handedOver}
                                 className="rounded-lg bg-indigo-600 px-3 py-1.5 text-xs font-bold text-white hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-50"
                                 onClick={() =>
-                                  onAssign({
+                                  saveRow(key, {
                                     duty_type: 'routine',
                                     class_id: row.class_id,
                                     subject: row.name,

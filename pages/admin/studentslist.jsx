@@ -14,6 +14,8 @@ import { useToast } from "../../hooks/use-toast"
 import { jsPDF } from "jspdf"
 import autoTable from "jspdf-autotable"
 import { motion, AnimatePresence } from "framer-motion"
+import { useSchoolSession } from "../../utils/schoolSession"
+import { canSeeStudentReportDetails } from "../../utils/adminDataAccess"
 
 const AVAILABLE_COLUMNS = [
   { key: "studentid", label: "Student ID" },
@@ -46,6 +48,12 @@ const formatReportValue = (student, key) => {
 
 export default function ReportGeneratorPage() {
   const { toast } = useToast()
+  const { access } = useSchoolSession()
+  const canSeeDetails = canSeeStudentReportDetails(access)
+  const availableColumns = useMemo(
+    () => AVAILABLE_COLUMNS.filter(col => canSeeDetails || !["mobilenumber", "monthly_fee"].includes(col.key)),
+    [canSeeDetails]
+  )
 
   const [students, setStudents] = useState([])
   const [classes, setClasses] = useState([])
@@ -115,8 +123,8 @@ export default function ReportGeneratorPage() {
   }, [students, selectedClassId])
 
   const activeColumns = useMemo(() => {
-    return AVAILABLE_COLUMNS.filter(col => selectedColumns.includes(col.key))
-  }, [selectedColumns])
+    return availableColumns.filter(col => selectedColumns.includes(col.key))
+  }, [availableColumns, selectedColumns])
 
   // --- EXPORTS ---
 
@@ -335,14 +343,14 @@ export default function ReportGeneratorPage() {
                     <div className="flex flex-col gap-2">
                       <Button
                         onClick={exportPDF}
-                        disabled={selectedColumns.length === 0 || filteredStudents.length === 0}
+                        disabled={activeColumns.length === 0 || filteredStudents.length === 0}
                         className="h-10 text-sm bg-blue-600 hover:bg-blue-700 text-white w-full justify-start px-4"
                       >
                         <FileText className="w-4 h-4 mr-2" /> Download PDF Report
                       </Button>
                       <Button
                         onClick={exportCSV}
-                        disabled={selectedColumns.length === 0 || filteredStudents.length === 0 || isAwardSheet}
+                        disabled={activeColumns.length === 0 || filteredStudents.length === 0 || isAwardSheet}
                         variant="outline"
                         className="h-10 text-sm bg-white border-gray-200 dark:bg-transparent dark:border-white/10 dark:text-slate-300 w-full justify-start px-4"
                       >
@@ -360,12 +368,12 @@ export default function ReportGeneratorPage() {
                       <TableProperties className="w-3.5 h-3.5" /> Data Columns
                     </label>
                     <span className="text-[10px] bg-gray-100 text-gray-600 dark:bg-white/10 dark:text-slate-400 px-2 py-0.5 rounded font-semibold uppercase">
-                      {isAwardSheet ? "Locked" : `${selectedColumns.length} Selected`}
+                      {isAwardSheet ? "Locked" : `${activeColumns.length} Selected`}
                     </span>
                   </div>
 
                   <div className={`grid grid-cols-2 gap-2 transition-opacity ${isAwardSheet ? 'opacity-40 pointer-events-none' : 'opacity-100'}`}>
-                    {AVAILABLE_COLUMNS.map(col => {
+                    {availableColumns.map(col => {
                       const isSelected = selectedColumns.includes(col.key)
                       return (
                         <button

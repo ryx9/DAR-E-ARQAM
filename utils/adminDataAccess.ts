@@ -13,6 +13,12 @@ export type SchoolAccess = {
   admin_page_access?: Record<string, boolean>;
 };
 
+export const STUDENT_REPORT_DETAILS_ACCESS = 'students.report-contact-fee';
+
+export function canSeeStudentReportDetails(access: SchoolAccess | null) {
+  return Boolean(access) && (access?.role !== 'admin' || access.admin_page_access?.[STUDENT_REPORT_DETAILS_ACCESS] !== false);
+}
+
 export const ADMIN_MODULES = [
   {
     key: 'operations',
