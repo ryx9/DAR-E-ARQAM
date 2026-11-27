@@ -22,10 +22,12 @@ export default function RecheckingPlanner({
   reviews,
   classNames,
   onAssign,
+  onRemove,
   busy,
 }) {
   const [batchId, setBatchId] = useState('');
   const [drafts, setDrafts] = useState({});
+  const [routineChoices, setRoutineChoices] = useState({});
   const [workspace, setWorkspace] = useState('exam');
   const batch = catalogue.batches.find(item => String(item.id) === batchId);
   const examRows = useMemo(
@@ -36,17 +38,23 @@ export default function RecheckingPlanner({
     [catalogue.tests, batch]
   );
   const latest = (classId, subject) => {
-    const duty = duties
+    const matching = duties
       .filter(
         d =>
           String(d.class_id) === String(classId) &&
           d.subject === subject &&
-          d.duty_type === 'routine'
+          d.duty_type === 'routine' &&
+          d.status !== 'cancelled'
       )
-      .sort((a, b) => String(b.updated_at).localeCompare(String(a.updated_at)))[0];
+      .sort((a, b) => String(b.updated_at).localeCompare(String(a.updated_at)));
+    const key = `routine-${classId}-${subject}`;
+    const active = matching.filter(d =>
+      ['checking', 'returned', 'awaiting_recheck'].includes(d.status)
+    );
+    const duty = active.find(d => d.id === routineChoices[key]) || active[0] || matching[0];
     if (!duty) return null;
     const review = reviews.find(r => r.duty_id === duty.id);
-    return { duty, review };
+    return { duty, review, active };
   };
   const staffIds = useMemo(
     () => new Set(catalogue.staff.map(person => String(person.id))),
@@ -69,6 +77,15 @@ export default function RecheckingPlanner({
       delete next[key];
       return next;
     });
+  };
+  const removeRow = async (key, duty) => {
+    if (!(await onRemove(duty))) return;
+    setDrafts(current => {
+      const next = { ...current };
+      delete next[key];
+      return next;
+    });
+    setRoutineChoices(current => ({ ...current, [key]: '' }));
   };
   const groupedExams = useMemo(
     () =>
@@ -162,10 +179,14 @@ export default function RecheckingPlanner({
                       </thead>
                       <tbody>
                         {rows.map(test => {
-                          const duty = duties.find(d => String(d.test_id) === String(test.id));
+                          const duty = duties.find(
+                            d => String(d.test_id) === String(test.id) && d.status !== 'cancelled'
+                          );
                           const id = checker(test.class_id, test.subject);
                           const draft = drafts[test.id] || {};
-                          const editable = ['checking', 'returned'].includes(duty?.status);
+                          const editable = ['checking', 'returned', 'awaiting_recheck'].includes(
+                            duty?.status
+                          );
                           const value = (key, fallback = '') => draft[key] ?? fallback;
                           return (
                             <tr
@@ -179,6 +200,7 @@ export default function RecheckingPlanner({
                               <td>
                                 <select
                                   className="w-40 rounded-md border-0 bg-transparent p-1.5 hover:bg-slate-100 focus:bg-background focus:ring-2 focus:ring-indigo-300 dark:hover:bg-slate-800"
+                                  disabled={busy || (!!duty && !editable)}
                                   value={value('checker_id', duty?.checker_id || id)}
                                   onChange={e => edit(test.id, { checker_id: e.target.value })}
                                 >
@@ -193,6 +215,7 @@ export default function RecheckingPlanner({
                               <td>
                                 <select
                                   className="w-40 rounded-md border-0 bg-transparent p-1.5 hover:bg-slate-100 focus:bg-background focus:ring-2 focus:ring-indigo-300 dark:hover:bg-slate-800"
+                                  disabled={busy || (!!duty && !editable)}
                                   value={value('rechecker_id', duty?.rechecker_id || '')}
                                   onChange={e => edit(test.id, { rechecker_id: e.target.value })}
                                 >
@@ -208,6 +231,7 @@ export default function RecheckingPlanner({
                                 <input
                                   className="w-32 rounded-md border-0 bg-transparent p-1.5 hover:bg-slate-100 focus:bg-background focus:ring-2 focus:ring-indigo-300 dark:hover:bg-slate-800"
                                   type="date"
+                                  disabled={busy || (!!duty && !editable)}
                                   value={value(
                                     'checking_deadline',
                                     duty?.checking_deadline || test.date
@@ -221,6 +245,7 @@ export default function RecheckingPlanner({
                                 <input
                                   className="w-32 rounded-md border-0 bg-transparent p-1.5 hover:bg-slate-100 focus:bg-background focus:ring-2 focus:ring-indigo-300 dark:hover:bg-slate-800"
                                   type="date"
+                                  disabled={busy || (!!duty && !editable)}
                                   value={value(
                                     'rechecking_deadline',
                                     duty?.rechecking_deadline || ''
@@ -264,8 +289,18 @@ export default function RecheckingPlanner({
                                     })
                                   }
                                 >
-                                  {editable ? 'Save' : duty ? 'In progress' : 'Assign'}
+                                  {editable ? 'Save' : duty ? 'Completed' : 'Assign'}
                                 </button>
+                                {editable && (
+                                  <button
+                                    type="button"
+                                    disabled={busy}
+                                    className="ml-2 text-xs font-bold text-rose-600 disabled:opacity-50"
+                                    onClick={() => removeRow(test.id, duty)}
+                                  >
+                                    Remove
+                                  </button>
+                                )}
                               </td>
                             </tr>
                           );
@@ -338,11 +373,12 @@ export default function RecheckingPlanner({
                         const key = `routine-${row.class_id}-${row.name}`;
                         const draft = drafts[key] || {};
                         const value = (name, fallback = '') => draft[name] ?? fallback;
-                        const editable = ['checking', 'returned'].includes(item?.duty?.status);
-                        const handedOver = item?.duty?.status === 'awaiting_recheck';
+                        const editable = ['checking', 'returned', 'awaiting_recheck'].includes(
+                          item?.duty?.status
+                        );
                         const materials = value(
                           'materials',
-                          editable || handedOver ? item?.duty?.materials || [] : []
+                          editable ? item?.duty?.materials || [] : []
                         );
                         const latestResult = item?.review
                           ? `${item.review.very_poor_count} very poor · ${item.review.poor_count} poor`
@@ -355,6 +391,30 @@ export default function RecheckingPlanner({
                             <td className="sticky left-0 z-10 bg-card p-3">
                               <p className="font-semibold">{row.name}</p>
                               <p className="mt-0.5 text-xs text-muted-foreground">{latestResult}</p>
+                              {item?.active?.length > 1 && (
+                                <select
+                                  aria-label={`Active ${row.name} duties`}
+                                  className="mt-1 max-w-36 rounded border bg-background p-1 text-xs"
+                                  value={item.duty.id}
+                                  onChange={e => {
+                                    setRoutineChoices(current => ({
+                                      ...current,
+                                      [key]: e.target.value,
+                                    }));
+                                    setDrafts(current => {
+                                      const next = { ...current };
+                                      delete next[key];
+                                      return next;
+                                    });
+                                  }}
+                                >
+                                  {item.active.map(d => (
+                                    <option key={d.id} value={d.id}>
+                                      {d.rechecking_deadline || 'No due date'} · {d.id.slice(0, 6)}
+                                    </option>
+                                  ))}
+                                </select>
+                              )}
                             </td>
                             <td>
                               <div className="flex gap-1.5">
@@ -364,7 +424,7 @@ export default function RecheckingPlanner({
                                     <button
                                       key={material}
                                       type="button"
-                                      disabled={busy || handedOver}
+                                      disabled={busy}
                                       aria-pressed={selected}
                                       onClick={() =>
                                         edit(key, {
@@ -384,7 +444,7 @@ export default function RecheckingPlanner({
                             <td>
                               <select
                                 className="w-40 rounded-md border-0 bg-transparent p-1.5 hover:bg-slate-100 focus:bg-background focus:ring-2 focus:ring-indigo-300 dark:hover:bg-slate-800"
-                                disabled={busy || handedOver}
+                                disabled={busy}
                                 value={value('checker_id', item?.duty?.checker_id || id)}
                                 onChange={e => edit(key, { checker_id: e.target.value })}
                               >
@@ -399,7 +459,7 @@ export default function RecheckingPlanner({
                             <td>
                               <select
                                 className="w-40 rounded-md border-0 bg-transparent p-1.5 hover:bg-slate-100 focus:bg-background focus:ring-2 focus:ring-indigo-300 dark:hover:bg-slate-800"
-                                disabled={busy || handedOver}
+                                disabled={busy}
                                 value={value('rechecker_id', item?.duty?.rechecker_id || '')}
                                 onChange={e => edit(key, { rechecker_id: e.target.value })}
                               >
@@ -415,12 +475,10 @@ export default function RecheckingPlanner({
                               <input
                                 className="w-32 rounded-md border-0 bg-transparent p-1.5 hover:bg-slate-100 focus:bg-background focus:ring-2 focus:ring-indigo-300 dark:hover:bg-slate-800"
                                 type="date"
-                                disabled={busy || handedOver}
+                                disabled={busy}
                                 value={value(
                                   'rechecking_deadline',
-                                  editable || handedOver
-                                    ? item?.duty?.rechecking_deadline || ''
-                                    : ''
+                                  editable ? item?.duty?.rechecking_deadline || '' : ''
                                 )}
                                 onChange={e => edit(key, { rechecking_deadline: e.target.value })}
                               />
@@ -434,7 +492,7 @@ export default function RecheckingPlanner({
                             </td>
                             <td className="pr-3">
                               <button
-                                disabled={busy || handedOver}
+                                disabled={busy}
                                 className="rounded-lg bg-indigo-600 px-3 py-1.5 text-xs font-bold text-white hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-50"
                                 onClick={() =>
                                   saveRow(key, {
@@ -458,8 +516,18 @@ export default function RecheckingPlanner({
                                   })
                                 }
                               >
-                                {editable ? 'Save' : handedOver ? 'Handed over' : 'Assign'}
+                                {editable ? 'Save' : 'Assign'}
                               </button>
+                              {editable && (
+                                <button
+                                  type="button"
+                                  disabled={busy}
+                                  className="ml-2 text-xs font-bold text-rose-600 disabled:opacity-50"
+                                  onClick={() => removeRow(key, item.duty)}
+                                >
+                                  Remove
+                                </button>
+                              )}
                             </td>
                           </tr>
                         );

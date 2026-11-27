@@ -20,6 +20,7 @@
 !/supabase/migrations/202611250001_rechecking_module.sql
 !/supabase/migrations/202611250002_routine_rechecking_direct.sql
 !/supabase/migrations/202611250002_normalize_message_line_breaks.sql
+!/supabase/migrations/202611270001_rechecking_incharge.sql
 !/supabase/migrations/202611240001_admin_module_access.sql
 !/supabase/migrations/202611240002_admin_page_access.sql
 /database

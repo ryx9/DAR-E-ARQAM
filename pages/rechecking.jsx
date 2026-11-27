@@ -7,6 +7,7 @@ import { getClassAccess } from '../utils/classAccess';
 import { useToast } from '../hooks/use-toast';
 import { FileCheck2, RefreshCw, RotateCcw } from 'lucide-react';
 import RecheckingPlanner from '../components/RecheckingPlanner';
+import { canAssignRechecking } from '../utils/recheckingAccess.mjs';
 
 const pktDate = () =>
   new Intl.DateTimeFormat('en-CA', {
@@ -38,6 +39,10 @@ export default function RecheckingPage() {
     }),
     [duties, setDuties] = useState([]),
     [reviews, setReviews] = useState([]),
+    [incharges, setIncharges] = useState([]),
+    [databaseCanManage, setDatabaseCanManage] = useState(false),
+    [roleName, setRoleName] = useState(''),
+    [inchargeChoice, setInchargeChoice] = useState(''),
     [loading, setLoading] = useState(true),
     [busy, setBusy] = useState(''),
     [tab, setTab] = useState('work'),
@@ -64,19 +69,26 @@ export default function RecheckingPage() {
       const role = await getClassAccess();
       if (!['admin', 'superadmin', 'teacher'].includes(role.role))
         throw Error('Staff access is required.');
-      const [cat, dutyRows, reviewRows] = await Promise.all([
+      const [cat, dutyRows, reviewRows, inchargeRows, permission] = await Promise.all([
         supabase.rpc('rechecking_catalogue'),
         supabase.from('rechecking_duties').select('*').order('updated_at', { ascending: false }),
         supabase.from('rechecking_reviews').select('*').order('created_at', { ascending: false }),
+        supabase.from('rechecking_incharges').select('profile_id'),
+        supabase.rpc('rechecking_can_manage', { p_class_id: 0 }),
       ]);
-      for (const r of [cat, dutyRows, reviewRows]) if (r.error) throw r.error;
+      for (const r of [cat, dutyRows, reviewRows, inchargeRows, permission])
+        if (r.error) throw r.error;
       setCatalogue(
         cat.data || { classes: [], staff: [], subjects: [], lessons: [], batches: [], tests: [] }
       );
       setDuties(dutyRows.data || []);
       setReviews(reviewRows.data || []);
+      setIncharges(inchargeRows.data || []);
+      setDatabaseCanManage(permission.data === true);
+      setRoleName(role.role);
       return true;
     } catch (e) {
+      setDatabaseCanManage(false);
       toast({ variant: 'destructive', title: 'Unable to load rechecking', description: e.message });
       return false;
     } finally {
@@ -86,10 +98,91 @@ export default function RecheckingPage() {
   useEffect(() => {
     void load();
   }, []);
+  useEffect(() => {
+    let active = true;
+    const refreshPermission = async () => {
+      try {
+        const [access, permission] = await Promise.all([
+          getClassAccess(),
+          supabase.rpc('rechecking_can_manage', { p_class_id: 0 }),
+        ]);
+        if (permission.error) throw permission.error;
+        if (active) {
+          setRoleName(access.role || '');
+          setDatabaseCanManage(permission.data === true);
+        }
+      } catch {
+        if (active) setDatabaseCanManage(false);
+      }
+    };
+    window.addEventListener('focus', refreshPermission);
+    return () => {
+      active = false;
+      window.removeEventListener('focus', refreshPermission);
+    };
+  }, []);
   const classes = new Map(catalogue.classes.map(c => [String(c.id), c.name]));
   const staff = new Map(catalogue.staff.map(s => [String(s.id), s.name]));
+  const isAdmin = ['admin', 'superadmin'].includes(roleName);
+  const canManage = canAssignRechecking(roleName, databaseCanManage);
+  useEffect(() => {
+    if (
+      (!canManage && (tab === 'assign' || tab === 'insights')) ||
+      (!isAdmin && tab === 'incharges')
+    ) {
+      setTab('work');
+    }
+  }, [canManage, isAdmin, tab]);
+  const visibleDuties = duties.filter(duty => duty.status !== 'cancelled');
+  async function setIncharge(profileId, enabled) {
+    if (!isAdmin || busy || !profileId) return;
+    setBusy('incharge');
+    try {
+      const { error } = await supabase.rpc('set_rechecking_incharge', {
+        p_profile_id: profileId,
+        p_enabled: enabled,
+      });
+      if (error) throw error;
+      setInchargeChoice('');
+      toast({ title: enabled ? 'Rechecking incharge assigned' : 'Rechecking incharge removed' });
+      await load();
+    } catch (error) {
+      toast({
+        variant: 'destructive',
+        title: 'Could not update incharge',
+        description: error.message,
+      });
+    } finally {
+      setBusy('');
+    }
+  }
+  async function removeDuty(duty) {
+    if (
+      !canManage ||
+      busy ||
+      !window.confirm(
+        `Remove the ${duty.subject} rechecking duty? Its review history will be retained.`
+      )
+    )
+      return;
+    setBusy('save');
+    try {
+      const { error } = await supabase.rpc('cancel_rechecking_duty', {
+        p_id: duty.id,
+        p_revision: duty.revision,
+      });
+      if (error) throw error;
+      toast({ title: 'Duty removed', description: 'Review history has been retained.' });
+      return await load();
+    } catch (error) {
+      toast({ variant: 'destructive', title: 'Could not remove duty', description: error.message });
+      return false;
+    } finally {
+      setBusy('');
+    }
+  }
   async function saveDuty(candidate) {
-    if (busy) return;
+    if (!canManage || busy) return;
     const checkerId = String(candidate.checker_id || '').trim(),
       recheckerId = String(candidate.rechecker_id || '').trim();
     if (!candidate.class_id || !checkerId || !recheckerId)
@@ -345,8 +438,9 @@ export default function RecheckingPage() {
         <div className="flex flex-wrap gap-2">
           {[
             ['work', 'My work'],
-            ['assign', 'Assign duty'],
-            ['insights', 'Reports & heatmap'],
+            ...(canManage ? [['assign', 'Assign duty']] : []),
+            ...(canManage ? [['insights', 'Reports & heatmap']] : []),
+            ...(isAdmin ? [['incharges', 'Rechecking incharges']] : []),
           ].map(([id, label]) => (
             <button
               key={id}
@@ -360,13 +454,76 @@ export default function RecheckingPage() {
             <RefreshCw className="inline h-4 w-4" /> Refresh
           </button>
         </div>
-        {tab === 'assign' && (
+        {tab === 'incharges' && isAdmin && (
+          <section className={card}>
+            <h2 className="font-bold">Rechecking incharges</h2>
+            <p className="mt-1 text-sm text-muted-foreground">
+              Incharges can assign, edit and remove rechecking duties for all classes. This is
+              separate from class incharges.
+            </p>
+            <div className="mt-4 flex flex-wrap gap-2">
+              <select
+                className={field + ' max-w-sm'}
+                value={inchargeChoice}
+                onChange={e => setInchargeChoice(e.target.value)}
+                aria-label="Choose a rechecking incharge"
+              >
+                <option value="">Choose an active teacher</option>
+                {catalogue.staff
+                  .filter(
+                    s =>
+                      s.role?.toLowerCase() === 'teacher' &&
+                      !incharges.some(i => i.profile_id === s.id)
+                  )
+                  .map(s => (
+                    <option key={s.id} value={s.id}>
+                      {s.name}
+                    </option>
+                  ))}
+              </select>
+              <button
+                className="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white disabled:opacity-50"
+                disabled={!inchargeChoice || !!busy}
+                onClick={() => setIncharge(inchargeChoice, true)}
+              >
+                Assign incharge
+              </button>
+            </div>
+            <div className="mt-4 space-y-2">
+              {incharges.map(i => (
+                <div
+                  key={i.profile_id}
+                  className="flex items-center justify-between gap-3 rounded-lg border p-3 text-sm"
+                >
+                  <span>
+                    {staff.get(String(i.profile_id)) || 'Inactive or unavailable teacher'}
+                  </span>
+                  <button
+                    className="text-rose-600 disabled:opacity-50"
+                    disabled={!!busy}
+                    onClick={() => {
+                      if (window.confirm('Remove this teacher as rechecking incharge?'))
+                        setIncharge(i.profile_id, false);
+                    }}
+                  >
+                    Remove access
+                  </button>
+                </div>
+              ))}
+              {!incharges.length && (
+                <p className="text-sm text-muted-foreground">No rechecking incharges assigned.</p>
+              )}
+            </div>
+          </section>
+        )}
+        {tab === 'assign' && canManage && (
           <RecheckingPlanner
             catalogue={catalogue}
             duties={duties}
             reviews={reviews}
             classNames={classes}
             onAssign={saveDuty}
+            onRemove={removeDuty}
             busy={busy === 'save'}
           />
         )}
@@ -379,10 +536,10 @@ export default function RecheckingPage() {
                   Open a duty to submit the next action.
                 </p>
               </div>
-              <span className="text-sm text-muted-foreground">{duties.length} duties</span>
+              <span className="text-sm text-muted-foreground">{visibleDuties.length} duties</span>
             </div>
             <div className="grid gap-3 lg:grid-cols-2">
-              {duties.map(d => (
+              {visibleDuties.map(d => (
                 <button
                   key={d.id}
                   onClick={() => setSelected(d.id)}
@@ -423,7 +580,7 @@ export default function RecheckingPage() {
                   )}
                 </button>
               ))}
-              {!duties.length && (
+              {!visibleDuties.length && (
                 <p className="py-10 text-center text-sm text-muted-foreground lg:col-span-2">
                   No rechecking duties are visible to you.
                 </p>
@@ -431,7 +588,7 @@ export default function RecheckingPage() {
             </div>
           </section>
         )}
-        {tab === 'insights' && (
+        {tab === 'insights' && canManage && (
           <section className="grid gap-5 lg:grid-cols-2">
             <div className={card}>
               <div className="flex items-center justify-between">
