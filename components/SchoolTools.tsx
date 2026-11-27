@@ -16,6 +16,7 @@ import {
 } from 'lucide-react';
 import { useSchoolSession } from '../utils/schoolSession';
 import { schoolNavigation, type SchoolLink } from '../utils/schoolNavigation';
+import { findDirectionalTool } from '../utils/toolNavigation.mjs';
 
 /* ── Section visual identity & taglines ─────────────────────────────────── */
 const SECTION_META: Record<
@@ -83,14 +84,35 @@ export default function SchoolTools({ exclude = [], onNavigate }: SchoolToolsPro
     const firstTool =
       toolsContainerRef.current?.querySelector<HTMLAnchorElement>('[data-school-tool-link]');
     if (firstTool) {
-      firstTool.focus({ preventScroll: true });
+      firstTool.focus();
       return true;
     }
     return false;
   };
 
   const handleSearchKeyDown = (event: React.KeyboardEvent<HTMLInputElement>) => {
+    if (
+      event.nativeEvent.isComposing ||
+      event.altKey ||
+      event.ctrlKey ||
+      event.metaKey ||
+      event.shiftKey
+    )
+      return;
     if (event.key === 'ArrowDown' && focusFirstTool()) event.preventDefault();
+    if (event.key === 'Enter') {
+      const first =
+        toolsContainerRef.current?.querySelector<HTMLAnchorElement>('[data-school-tool-link]');
+      if (first) {
+        event.preventDefault();
+        first.click();
+      }
+    }
+    if (event.key === 'Escape' && searchQuery) {
+      event.preventDefault();
+      event.stopPropagation();
+      setSearchQuery('');
+    }
   };
 
   const handleToolKeyDown = (event: React.KeyboardEvent<HTMLAnchorElement>) => {
@@ -100,16 +122,23 @@ export default function SchoolTools({ exclude = [], onNavigate }: SchoolToolsPro
     );
     const index = links.indexOf(event.currentTarget);
 
-    if (event.key === 'ArrowDown') {
+    if (event.altKey || event.ctrlKey || event.metaKey || event.shiftKey) return;
+    if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(event.key)) {
       event.preventDefault();
-      links[Math.min(index + 1, links.length - 1)]?.focus({ preventScroll: true });
-    } else if (event.key === 'ArrowUp') {
+      const next = findDirectionalTool(
+        links.map(link => link.getBoundingClientRect()),
+        index,
+        event.key
+      );
+      if (next >= 0) links[next].focus();
+      else if (event.key === 'ArrowUp') searchInputRef.current?.focus();
+    } else if (event.key === 'Home' || event.key === 'End') {
       event.preventDefault();
-      if (index <= 0) searchInputRef.current?.focus({ preventScroll: true });
-      else links[index - 1]?.focus({ preventScroll: true });
+      links[event.key === 'Home' ? 0 : links.length - 1]?.focus();
     } else if (event.key === 'Escape') {
       event.preventDefault();
-      searchInputRef.current?.focus({ preventScroll: true });
+      event.stopPropagation();
+      searchInputRef.current?.focus();
     }
   };
 
@@ -263,6 +292,7 @@ export default function SchoolTools({ exclude = [], onNavigate }: SchoolToolsPro
             id="school-tools-search"
             ref={searchInputRef}
             type="text"
+            aria-label="Search school tools"
             value={searchQuery}
             onChange={e => setSearchQuery(e.target.value)}
             onKeyDown={handleSearchKeyDown}
@@ -280,6 +310,10 @@ export default function SchoolTools({ exclude = [], onNavigate }: SchoolToolsPro
           )}
         </div>
       </div>
+
+      <p className="-mt-3 text-xs text-muted-foreground">
+        Use arrow keys to move between tools, Enter to open, and Escape to return to search.
+      </p>
 
       {/* ── SEARCH RESULTS NOTICE (WHEN SEARCHING) ── */}
       {searchQuery.trim() && (
@@ -328,7 +362,11 @@ export default function SchoolTools({ exclude = [], onNavigate }: SchoolToolsPro
           {/* If single section (from category filter or single match) */}
           {displaySections.length === 1 ? (
             <div className="max-w-4xl">
-              <SectionPanel section={displaySections[0]} />
+              <SectionPanel
+                section={displaySections[0]}
+                onNavigate={onNavigate}
+                onToolKeyDown={handleToolKeyDown}
+              />
             </div>
           ) : (
             /* Balanced 2-Column Layout (Independent Stacks = Zero Row-Waiting!) */
@@ -416,7 +454,6 @@ function SectionPanel({
             href={href}
             data-school-tool-link
             onClick={onNavigate}
-            onMouseEnter={event => event.currentTarget.focus({ preventScroll: true })}
             onKeyDown={onToolKeyDown}
             style={{ '--h': hue } as React.CSSProperties}
             className="jelly-soft group flex items-center justify-between gap-2.5 rounded-xl px-2.5 py-2 transition-all hover:bg-[hsl(var(--h)_85%_95%/0.7)] focus:bg-[hsl(var(--h)_85%_95%/0.7)] focus:outline-none focus:ring-2 focus:ring-[hsl(var(--h)_60%_50%/0.4)] dark:hover:bg-[hsl(var(--h)_60%_50%/0.14)] dark:focus:bg-[hsl(var(--h)_60%_50%/0.14)]"
